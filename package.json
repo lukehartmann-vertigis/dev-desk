@@ -1,0 +1,58 @@
+{
+	"name": "devdesk",
+	"version": "0.1.0",
+	"private": true,
+	"type": "module",
+	"engines": {
+		"node": "24.x"
+	},
+	"scripts": {
+		"dev": "next dev --hostname 0.0.0.0",
+		"build": "next build",
+		"start": "NEXT_MANUAL_SIG_HANDLE=1 next start --hostname 0.0.0.0",
+		"typecheck": "tsc --noEmit",
+		"lint": "eslint . --max-warnings 0",
+		"format": "prettier --write .",
+		"format:check": "prettier --check .",
+		"test": "vitest run",
+		"test:e2e": "playwright test",
+		"db:generate": "drizzle-kit generate"
+	},
+	"dependencies": {
+		"@github/copilot-sdk": "1.0.26",
+		"@tailwindcss/postcss": "4.3.3",
+		"better-sqlite3": "13.0.3",
+		"drizzle-orm": "0.45.4",
+		"motion": "14.6.0",
+		"next": "16.4.3",
+		"react": "19.3.1",
+		"react-dom": "19.3.1",
+		"tailwindcss": "4.3.3",
+		"zod": "4.6.6"
+	},
+	"devDependencies": {
+		"@eslint/js": "10.0.1",
+		"@next/eslint-plugin-next": "16.4.3",
+		"@playwright/test": "1.64.1",
+		"@types/better-sqlite3": "9.6.0",
+		"@types/node": "24.19.2",
+		"@types/react": "19.3.0",
+		"@types/react-dom": "19.3.0",
+		"drizzle-kit": "0.31.11",
+		"eslint": "10.13.0",
+		"eslint-plugin-react-hooks": "7.1.1",
+		"prettier": "3.9.10",
+		"prettier-plugin-tailwindcss": "0.8.1",
+		"typescript": "5.9.3",
+		"typescript-eslint": "8.72.0",
+		"vitest": "5.0.5"
+	},
+	"overrides": {
+		"@github/copilot-sdk": {
+			"zod": "$zod"
+		},
+		"@esbuild-kit/core-utils": {
+			"esbuild": "0.25.12"
+		}
+	}
+}

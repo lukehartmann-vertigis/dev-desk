@@ -1,0 +1,13 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "DevDesk: live logs",
+			"type": "shell",
+			"command": "docker",
+			"args": ["compose", "logs", "--follow", "--since", "2m", "app"],
+			"isBackground": true,
+			"problemMatcher": []
+		}
+	]
+}

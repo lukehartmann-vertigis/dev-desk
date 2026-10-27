@@ -1,0 +1,14 @@
+node_modules
+.next
+.data
+drizzle
+docs
+clickdummy.html
+AGENTS.md
+README.md
+package-lock.json
+next-env.d.ts
+*.tsbuildinfo
+test-results
+playwright-report
+.env*

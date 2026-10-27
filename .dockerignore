@@ -1,0 +1,10 @@
+node_modules
+.next
+.data
+.git
+.env*
+test-results
+playwright-report
+*.tsbuildinfo
+AGENTS.md
+clickdummy.html
