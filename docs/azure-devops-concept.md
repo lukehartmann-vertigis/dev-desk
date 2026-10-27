@@ -27,24 +27,25 @@ Organization
 - A team is not synonymous with every security or directory group that can be
   assigned as a PR reviewer.
 
-## 2. What was actually observed
+## 2. Observed structural behavior
 
 Read-only MCP operations were limited to project/repository metadata, the
 authenticated account's teams, and those teams' settings.
 
 | Observation | Evidence and limit |
 | --- | --- |
-| Project discovery | Two pages of 10 visible projects were inspected; this was not a complete organization inventory |
-| Focus | The user selected Utilities for further exploration |
-| Repositories | Three pages (10, 10, 1) returned 21 repositories, 20 enabled and one disabled |
-| Team membership | The `mine` team query returned Network Locator and Network Solutions; this does not prove all group memberships |
-| Network Locator | Team settings use the area path `Utilities\Network Locator` |
-| Network Solutions | Team settings span multiple areas, including Editing, Job Management, and Utility Network; not a one-repository mapping |
+| Project discovery | Paginated discovery was inspected; this was not a complete organization inventory |
+| Focus | The user selected the initial workspace documented below |
+| Repositories | Paged discovery distinguished enabled and disabled repositories; live inventory details and counts are omitted |
+| Team membership | The `mine` team query returned team scopes; this does not prove all group memberships |
+| Area rules | Observed team settings support single and multiple area scopes; they do not establish repository ownership |
 | API scope | No work-item bodies, PR discussions, code files, repository clones, or credential values were retrieved |
 
-Only the relevant structural summary is retained here, not the complete unrelated
-project/repository inventory, personal identity records, or raw MCP responses.
-The observation date matters: live repositories and team settings can change.
+Only structural conclusions are retained for publication. Live team names, area
+paths, membership details, inventory counts, personal identity records, and raw
+MCP responses are omitted. The configured initial profile below is separate
+from those live observations; its identifiers also require approval before
+public sharing. Live repositories and team settings can change.
 
 The MCP credential's access is not proof that the future application PAT has
 identical permissions.
@@ -120,7 +121,7 @@ that a PR is mergeable.
 
 The exposed MCP metadata operations established team membership, not a complete
 Graph traversal, all directory-backed memberships, or actual PR reviewer mapping.
-No complete group list is inferred from those two teams.
+No complete group list is inferred from the observed team scopes.
 
 The official Graph membership endpoint documents:
 - Upward membership lookup by subject descriptor.

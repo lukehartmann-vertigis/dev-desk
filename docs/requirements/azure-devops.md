@@ -67,6 +67,11 @@ or through a team/group, unless the user has already approved the PR.
 Acceptance:
 - Each row shows title, repository, project, author, the user's review vote/state,
   draft indicator where applicable, and a direct link.
+- Expandable review votes use status-colored chips with icons and explicit text:
+  approvals (including suggestions) are green, waiting for author is yellow,
+  rejection is red, and no vote or unavailable/unknown votes are gray.
+  Group reviewers appear side by side in the first row, individual reviewers in
+  the second row; rows wrap on narrow screens and empty reviewer groups are omitted.
 - Completed/abandoned PRs are excluded. The user's approval or approval with
   suggestions hides an active PR from review requests; no vote, waiting, or
   rejection does not count as approval.
@@ -91,6 +96,7 @@ Acceptance:
 - Each row shows title, repository, project, active/draft state, review votes,
   and a direct link.
 - Individual required-reviewer indicators are preserved where provided.
+- Review votes use the same grouped, status-colored chips as review requests.
 - Votes are not misrepresented as a guarantee that branch policies allow merging.
 - Build status and merge-conflict detection are not fetched for the MVP.
 

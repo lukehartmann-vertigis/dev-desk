@@ -5,6 +5,7 @@ import {
 	type DashboardState,
 	type WorkItem,
 	type PullRequest,
+	type Reviewer,
 } from '../../lib/contracts';
 import { formatTimestamp } from '../../lib/format';
 import { ScopeLabel, type LegendEntry } from './scope-legend';
@@ -316,14 +317,47 @@ function WorkMeta({
 	);
 }
 
+const reviewVotes = new Map([
+	[10, { label: 'Approved', status: 'approved', icon: 'm8 12 3 3 5-6' }],
+	[5, { label: 'Approved with suggestions', status: 'approved', icon: 'm8 12 3 3 5-6' }],
+	[0, { label: 'No vote', status: 'neutral', icon: 'M8 12h8' }],
+	[-5, { label: 'Waiting for author', status: 'waiting', icon: 'M12 7v5l3 2' }],
+	[-10, { label: 'Rejected', status: 'rejected', icon: 'm9 9 6 6m0-6-6 6' }],
+]);
+
+function ReviewChip({ reviewer }: { reviewer: Reviewer }) {
+	const vote = (reviewer.vote === null ? undefined : reviewVotes.get(reviewer.vote)) ?? {
+		label: reviewer.vote === null ? 'Vote unavailable' : `Vote ${reviewer.vote}`,
+		status: 'neutral',
+		icon: 'M9 9a3 3 0 0 1 6 0c0 2-3 2-3 4m0 3h.01',
+	};
+	return (
+		<li className="review-chip" data-vote={vote.status}>
+			<svg
+				width="16"
+				height="16"
+				viewBox="0 0 24 24"
+				fill="none"
+				stroke="currentColor"
+				strokeWidth="1.75"
+				strokeLinecap="round"
+				strokeLinejoin="round"
+				aria-hidden="true"
+			>
+				<circle cx="12" cy="12" r="9" />
+				<path d={vote.icon} />
+			</svg>
+			<span>
+				<span className="review-chip-name">{reviewer.name}</span>
+				{reviewer.required ? ' (required)' : ''}: {vote.label}
+			</span>
+		</li>
+	);
+}
+
 function PrMeta({ row }: { row: PullRequest }) {
-	const votes = new Map([
-		[10, 'Approved'],
-		[5, 'Approved with suggestions'],
-		[0, 'No vote'],
-		[-5, 'Waiting for author'],
-		[-10, 'Rejected'],
-	]);
+	const groups = row.reviewers.filter((reviewer) => reviewer.group);
+	const individuals = row.reviewers.filter((reviewer) => !reviewer.group);
 	return (
 		<>
 			<p className="mt-1 text-xs">
@@ -332,16 +366,24 @@ function PrMeta({ row }: { row: PullRequest }) {
 			</p>
 			<details className="mt-2 text-xs">
 				<summary>Review votes ({row.reviewers.length})</summary>
-				{row.reviewers.map((reviewer) => (
-					<p key={reviewer.id} className="mt-1">
-						{reviewer.name}
-						{reviewer.group ? ' (group)' : ''}
-						{reviewer.required ? ' (required)' : ''}:{' '}
-						{reviewer.vote === null
-							? 'Vote unavailable'
-							: (votes.get(reviewer.vote) ?? `Vote ${reviewer.vote}`)}
-					</p>
-				))}
+				<div className="review-votes">
+					{[
+						{ label: 'Group reviews', reviewers: groups },
+						{ label: 'Individual reviews', reviewers: individuals },
+					].map(
+						({ label, reviewers }) =>
+							reviewers.length > 0 && (
+								<div key={label}>
+									<p className="review-row-label">{label}</p>
+									<ul className="review-row" aria-label={label}>
+										{reviewers.map((reviewer) => (
+											<ReviewChip key={reviewer.id} reviewer={reviewer} />
+										))}
+									</ul>
+								</div>
+							),
+					)}
+				</div>
 			</details>
 		</>
 	);

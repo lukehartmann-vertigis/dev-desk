@@ -11,6 +11,11 @@ covers the real root application, not the historical compatibility fixture.
 It does not certify every active baseline requirement without live evidence.
 OPS-006 benchmarking remains deferred.
 
+Publication note: live team/area identifiers, workspace inventories, and counts
+of real work items, PRs, todos, or conversation entries are intentionally omitted.
+Test-suite totals, synthetic fixture counts, and technical measurements remain
+as reproducible verification evidence.
+
 ### Startup follow-up — 2026-10-27
 
 A live startup exposed a connection-data API version mismatch: `7.1` returned
@@ -19,7 +24,7 @@ HTTP 200 with an authenticated identity using the same locally configured PAT.
 The adapter now explicitly selects the preview version for this endpoint, and
 the fake transport asserts the exact version so offline tests catch regressions.
 After rebuilding, the initial live synchronization completed successfully for all
-five configured scopes, and a subsequent automatic cycle refreshed every scope
+configured scopes, and a subsequent automatic cycle refreshed every scope
 without manual refresh, stale data, or scope errors. Typecheck, lint, formatting,
 all 48 tests, and the production build passed during the rebuild.
 This confirms the observed connection and synchronization behavior, not complete
@@ -87,12 +92,11 @@ Verification:
   the clickdummy remains unchanged.
 - The running app was updated and remains healthy. Full todo-list and transcript
   fingerprints match before/after replacement. No existing records were changed.
-- The real app PAT successfully loaded **Network Locator** and **Network
-  Solutions**, including their full area rules. All 18 assigned work items have
-  area metadata and match one of those team scopes in this observed snapshot.
-  All five core ADO scopes and the team metadata are fresh without errors.
-  The live browser shows two repository entries, two board entries, and no
-  repository filter inputs.
+- The real app PAT successfully loaded the account's team scopes and full area
+  rules. All assigned work items in the observed snapshot have area metadata
+  and match a retrieved team scope. Core ADO scopes and team metadata are fresh
+  without errors. Live browser legends match the configured metadata and have
+  no repository filter inputs.
 
 These observations establish the current account's area-scope annotations, not
 universal board visibility or complete directory-backed PR group parity.
@@ -119,8 +123,8 @@ Verification:
   its tab button so it cannot create document overflow.
 - The running app is updated and healthy; todo-list and transcript fingerprints
   match immediately before/after replacement. No active chat was interrupted.
-- The live browser shows one visible panel and counts of 18 assigned items,
-  6 review requests, and 4 own PRs in the observed snapshot. Tab-bar appearance,
+- The live browser shows one visible panel and populated count bubbles for the
+  cached assigned-work, review-request, and own-PR datasets. Tab-bar appearance,
   colored bubbles, and separate warm board/cool repository colors were checked
   directly without modifying user records.
 
@@ -159,9 +163,9 @@ Verification:
   internal comments remain limited to non-obvious intent.
 - The running app is updated and healthy. No chat or deletion approval was active
   at replacement; complete todo and transcript fingerprints are unchanged.
-  Live Chromium reports three tabs, one visible panel, counts **18/6/4**, and
-  zero page errors.
-- All five real ADO datasets and the team-board mapping have successful timestamps
+  Live Chromium reports three tabs, one visible panel, populated dataset counts,
+  and zero page errors.
+- All real ADO datasets and the team-board mapping have successful timestamps
   after this deployment, with no stale/error state. No live model prompt was sent
   for this refactor; existing native/fake-provider tests cover the moved SDK policy.
 
@@ -200,7 +204,7 @@ Verification:
   execution, and no document overflow at desktop/mobile sizes.
 - The live app is updated and healthy; no active chat or pending deletion
   approval was interrupted. Full todo/chat fingerprints are unchanged.
-  Live Chromium finds three handles for three open todos, the existing assistant
+  Live Chromium finds handles on open todos, the existing assistant
   reply rendered as Markdown, and zero page errors. ADO cache scopes are fresh.
 - No live model prompt was sent and no user todo was reordered for acceptance.
   Mutating browser tests ran only against the isolated database.
@@ -225,7 +229,7 @@ Verification:
   The touch case now moves diagonally and independently checks zero X translation.
 - The preceding 27-case full browser release remains recorded above; the suite
   now defines 29 cases, with this change validated by the focused 12-case run.
-- The live app is updated and healthy. Live Chromium confirms all three open
+- The live app is updated and healthy. Live Chromium confirms all open
   todo handles have the new dimensions and borderless styling, with zero page
   errors. Full todo/chat fingerprints are unchanged; no active chat or pending
   deletion approval was interrupted.
@@ -273,8 +277,8 @@ Verification:
   todo/chat fingerprints match before/after replacement; the deployment guard
   found no active chat, pending cleanup, or deletion approval to interrupt.
 - Read-only live Chromium checks pass at 375/1440px with zero page errors or
-  mutations. All three live tabs expose two chips, default first selection and
-  per-tab retention work, selected chip counts match rendered rows, and all five
+  mutations. The live tabs expose configured scope chips, default first selection
+  and per-tab retention work, selected chip counts match rendered rows, and
   existing tool outcomes are collapsed 32px lines with expandable literal details.
   Both owned isolated acceptance containers are stopped.
 
@@ -299,8 +303,8 @@ The root lockfile is authoritative; exact stack rationale is in the
 | Reference validation | Scoped URLs, organization identity, malformed encoding, zero/unsafe numeric IDs, offline retention, and cross-organization cache separation tested |
 | Disabled/degraded integrations | Missing tokens leave health ready and todos usable; invalid ADO settings leave local writes usable; stored chat remains readable after removing the Copilot token |
 | Production error boundary | Expected errors retain safe status/message across separately compiled Next.js server entry bundles; unmarked upstream errors remain redacted |
-| Container replacement | Ten acknowledged todos, order, revisions, references, and list revision survive replacement; SHA-256 of the complete todo-list representation matches |
-| Whole-volume restore | Stopped-volume archive restored into a fresh owned volume; ten records and complete todo-list fingerprint match exactly |
+| Container replacement | Ten acknowledged synthetic todos, order, revisions, references, and list revision survive replacement; SHA-256 of the complete todo-list representation matches |
+| Whole-volume restore | Stopped-volume archive restored into a fresh owned volume; ten synthetic records and complete todo-list fingerprint match exactly |
 | Awaited shutdown | Normal shutdown and shutdown with an actual `copilot-runtime` child log `application.stopped`, exit 143 on SIGTERM, no OOM/forced-kill exit |
 | Real app SDK lifecycle | With a deliberately invalid synthetic token and network disabled, the app starts a native SDK child, reports the failed provider request safely, and retains the transcript after replacement |
 | Real app offline clearing | After removing that synthetic token, confirmed clearing returns 200, removes app messages, reports no pending SDK cleanup, and leaves todos byte-for-byte unchanged |
@@ -392,7 +396,7 @@ logins. Locally configured tokens were used for the follow-up checks above.
 The remaining checks below are **not performed**, not failed and not waived:
 
 1. **ADO authentication and scope:** initial and subsequent scheduled syncs for
-   the five selected scopes pass. Manual parity with ADO, additional projects,
+   the configured scopes pass. Manual parity with ADO, additional projects,
    optional email assertion, and live denied-scope recovery remain unverified.
 2. **Review parity:** compare representative personal, group-only, mixed,
    nested, and directory-backed requests with Azure DevOps. Verify positive

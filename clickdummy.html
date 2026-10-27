@@ -1,24 +1,664 @@
 <!doctype html>
 <html lang="en">
-<head>
-<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>DevDesk — Daily Dashboard</title>
-<style>
-:root{color-scheme:dark;--bg:#0b0e13;--panel:#121720;--panel2:#171e29;--line:#27303d;--text:#e7ebf1;--muted:#8995a7;--accent:#8b9eff;--green:#69c9a0;--radius:13px}*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:14px/1.5 Inter,ui-sans-serif,system-ui,-apple-system,Segoe UI,sans-serif}button,input{font:inherit}button{cursor:pointer}a{color:inherit;text-decoration:none}a:hover{color:var(--accent)}.app{max-width:1600px;margin:auto;min-height:100vh;display:grid;grid-template-columns:215px minmax(0,1fr) 350px}.sidebar{border-right:1px solid var(--line);padding:25px 18px;background:#10141c}.brand{display:flex;align-items:center;gap:10px;font-size:18px;font-weight:750;margin:0 8px 38px}.logo{display:grid;place-items:center;width:31px;height:31px;border-radius:9px;background:var(--accent);color:#11182b;font-weight:900}.tiny{font-size:11px;text-transform:uppercase;letter-spacing:1.4px;color:#69768a;font-weight:700;margin:26px 11px 10px}.nav{padding:10px 12px;color:#95a2b5;border-radius:9px;display:flex;gap:10px;align-items:center}.nav.active{background:#222a3d;color:#ced5ff;font-weight:650}.repo{display:flex;align-items:center;gap:9px;padding:8px 11px;color:#b5c0ce;font-size:12px}.dot{width:7px;height:7px;border-radius:50%;background:#8e9cff}.dot.teal{background:#67c9aa}.repo{width:100%;border:0;background:transparent;text-align:left;cursor:pointer;border-radius:8px;transition:opacity .15s,background .15s}.repo:hover{background:#1b2330}.repo[aria-pressed="false"]{opacity:.42}.repo[aria-pressed="false"] .dot{background:#596275}.repo .repo-check{margin-left:auto;color:#92a3ba;font-size:12px}.workrow[data-repo="frontend-app"]{border-left:3px solid #8e9cff;padding-left:15px}.workrow[data-repo="backend-api"]{border-left:3px solid #67c9aa;padding-left:15px}.workrow .repo-name{font-weight:650}.workrow[data-repo="frontend-app"] .repo-name{color:#a0acff}.workrow[data-repo="backend-api"] .repo-name{color:#67c9aa}.bottom{position:sticky;top:95vh;color:#6f7b8a;font-size:12px;margin:28px 10px}.main{padding:31px 35px;min-width:0}.top{display:flex;justify-content:space-between;gap:14px;align-items:center;margin-bottom:25px}.eyebrow{color:var(--accent);font-weight:650;font-size:12px;letter-spacing:.4px}h1{font-size:27px;letter-spacing:-.8px;margin:3px 0}h2{font-size:15px;letter-spacing:-.2px;margin:0}p{margin:4px 0;color:var(--muted)}.refresh,.ghost{border:1px solid var(--line);border-radius:8px;background:var(--panel);color:#b9c4d4;padding:8px 11px}.refresh:hover,.ghost:hover{background:var(--panel2)}.card{border:1px solid var(--line);background:var(--panel);border-radius:var(--radius);overflow:hidden;margin-bottom:21px}.cardhead{padding:18px 19px 14px;display:flex;align-items:center;justify-content:space-between;gap:10px}.count{font-size:11px;color:#9da9bc;background:#252d3b;padding:2px 8px;border-radius:20px}.inputwrap{display:flex;gap:9px;padding:0 18px 17px}.inputwrap input,.chatinput input{min-width:0;flex:1;padding:11px 13px;border-radius:8px;background:#0d121a;border:1px solid #303a4b;color:var(--text);outline:none}.inputwrap input:focus,.chatinput input:focus{border-color:var(--accent)}.primary{border:0;border-radius:8px;background:#8b9eff;color:#11182b;font-weight:750;padding:9px 14px}.todo{min-height:48px;display:flex;align-items:center;gap:11px;padding:11px 19px;border-top:1px solid #212936}.todo input{width:16px;height:16px;accent-color:#889dff;cursor:pointer}.todotext{flex:1}.todo.done .todotext{text-decoration:line-through;color:#6b7686}.tag{font-size:10px;font-weight:650;padding:3px 7px;border-radius:5px;color:#aab9ff;background:#252d4c;white-space:nowrap}.tag.teal{color:#76d1b3;background:#15382f}.delete{background:none;border:0;color:#6e7b8e;padding:3px 6px;font-size:18px}.delete:hover{color:#ff9696}.subfoot{font-size:12px;color:var(--muted);padding:12px 19px;border-top:1px solid #222b37}.grid{display:grid;grid-template-columns:1fr 1fr;gap:20px}.workrow{display:flex;align-items:flex-start;gap:11px;padding:12px 18px;border-top:1px solid #222b37}.type{width:27px;height:27px;flex-shrink:0;border-radius:7px;background:#283244;color:#9eafff;display:grid;place-items:center;font-size:12px;font-weight:800}.type.green{color:#7acdb0;background:#1a3731}.type.orange{color:#e5b577;background:#3a2d20}.detail{min-width:0;flex:1}.titleline{font-size:12.5px;font-weight:580}.meta{font-size:11px;color:#8190a2;margin-top:3px}.pill{white-space:nowrap;color:#a7b4c5;font-size:10px;border:1px solid #354053;border-radius:5px;padding:2px 6px}.pill.review{color:#deb881;border-color:#6c573b}.chat{border-left:1px solid var(--line);background:#10151d;display:flex;flex-direction:column;height:100vh;position:sticky;top:0}.chathead{padding:25px 19px 17px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center}.online{font-size:11px;color:var(--green)}.messages{flex:1;overflow:auto;padding:20px 18px}.bubble{padding:12px 13px;border-radius:11px;background:#1c2533;color:#d2dbe8;margin-bottom:13px;font-size:12.5px}.bubble.user{background:#293456;margin-left:35px}.bubble.assistant{margin-right:18px}.author{font-size:10px;font-weight:750;letter-spacing:.6px;text-transform:uppercase;color:#8b9eff;margin-bottom:7px}.chatfoot{border-top:1px solid var(--line);padding:15px}.suggest{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:11px}.suggest button{font-size:11px;border:1px solid #303b4e;background:#19212d;color:#aab6c7;border-radius:20px;padding:5px 8px}.chatinput{display:flex;gap:7px}.chatinput input{font-size:12px}.hint{font-size:10px;text-align:center;color:#68768b;margin-top:9px}.empty{padding:13px 19px;color:var(--muted);font-size:12px}@media(max-width:1250px){.app{grid-template-columns:175px minmax(0,1fr) 310px}.main{padding:27px 20px}}@media(max-width:980px){.app{grid-template-columns:150px 1fr}.chat{grid-column:2;height:400px;position:static;border-top:1px solid var(--line)}}@media(max-width:650px){.app{display:block}.sidebar{padding:14px;border-right:0;border-bottom:1px solid var(--line)}.brand{margin:0 0 10px}.sidebar .tiny,.sidebar .bottom{display:none}.sidebar .repo{display:inline-flex;width:auto;margin-right:6px}.nav{display:inline-flex;padding:7px 9px;font-size:12px}.main{padding:20px 13px}.grid{grid-template-columns:1fr}.chat{height:430px}.top{align-items:flex-start}h1{font-size:23px}} 
-</style></head>
-<body><div class="app">
-<aside class="sidebar"><div class="brand"><span class="logo">⌘</span> DevDesk</div><div class="tiny">Workspace</div><div class="nav active">▦ &nbsp; Overview</div><div class="nav">☑ &nbsp; Daily Todos</div><div class="tiny">Azure DevOps</div><button class="repo" data-repo-toggle="frontend-app" aria-pressed="true" title="Toggle frontend-app items"><span class="dot"></span> frontend-app <span class="repo-check">✓</span></button><button class="repo" data-repo-toggle="backend-api" aria-pressed="true" title="Toggle backend-api items"><span class="dot teal"></span> backend-api <span class="repo-check">✓</span></button><div class="bottom">● Local workspace<br>Data stored in your browser</div></aside>
-<main class="main"><div class="top"><div><div class="eyebrow" id="date">MONDAY · OCT 26</div><h1>Your daily workspace</h1><p>Stay focused. Keep shipping.</p></div><button class="refresh" id="refresh" title="Demo data; no Azure connection">↻ Refresh</button></div>
-<section class="card"><div class="cardhead"><h2>☑ &nbsp; Today's todos</h2><span class="count" id="todoCount">0 open</span></div><form id="todoForm" class="inputwrap"><input id="todoInput" placeholder="Add a task and press Enter…" autocomplete="off" aria-label="New todo"><button class="primary" type="submit">+ Add</button></form><div id="todoList"></div><div class="subfoot" id="todoFooter">Open tasks stay on your list tomorrow.</div></section>
-<div class="grid"><section class="card"><div class="cardhead"><h2>Assigned work items</h2><span class="count" data-count-for="work">3 items</span></div><div class="workrow" data-repo="frontend-app"><div class="type">✓</div><div class="detail"><div class="titleline">#4821 · Update authentication flow</div><div class="meta"><span class="repo-name">frontend-app</span> · User Story</div></div><span class="pill">Active</span></div><div class="workrow" data-repo="backend-api"><div class="type orange">!</div><div class="detail"><div class="titleline">#4798 · Fix session timeout handling</div><div class="meta"><span class="repo-name">backend-api</span> · Bug</div></div><span class="pill">New</span></div><div class="workrow" data-repo="backend-api"><div class="type green">✓</div><div class="detail"><div class="titleline">#4752 · Add integration tests</div><div class="meta"><span class="repo-name">backend-api</span> · Task</div></div><span class="pill">Active</span></div></section>
-<section class="card"><div class="cardhead"><h2>Review requests</h2><span class="count" data-count-for="reviews">2 PRs</span></div><div class="workrow" data-repo="backend-api"><div class="type green">⑂</div><div class="detail"><div class="titleline">PR #312 · Improve API error handling</div><div class="meta"><span class="repo-name">backend-api</span> · by Alex</div></div><span class="pill review">Review</span></div><div class="workrow" data-repo="frontend-app"><div class="type green">⑂</div><div class="detail"><div class="titleline">PR #309 · Refactor navigation</div><div class="meta"><span class="repo-name">frontend-app</span> · by Sam</div></div><span class="pill review">Review</span></div></section></div>
-<section class="card"><div class="cardhead"><h2>My pull requests</h2><span class="count" data-count-for="mine">2 open</span></div><div class="workrow" data-repo="frontend-app"><div class="type green">⑂</div><div class="detail"><div class="titleline">PR #315 · Add token refresh support</div><div class="meta"><span class="repo-name">frontend-app</span> · Updated 2 hours ago</div></div><span class="pill review">Waiting review</span></div><div class="workrow" data-repo="backend-api"><div class="type green">⑂</div><div class="detail"><div class="titleline">PR #307 · Extend audit logging</div><div class="meta"><span class="repo-name">backend-api</span> · Updated yesterday</div></div><span class="pill">Draft</span></div></section>
-</main>
-<aside class="chat"><div class="chathead"><div><h2>✧ &nbsp; AI Assistant</h2><p style="font-size:11px">Your workspace copilot</p></div><span class="online">● Demo</span></div><div class="messages" id="messages"><div class="bubble assistant"><div class="author">Assistant</div>Hey! 👋 I can help manage your local todos. Try “add todo: review authentication changes” or ask “what's on my list?”<br><br><span style="color:#8e9bad">Azure DevOps and AI integration are mocked in this design preview.</span></div></div><div class="chatfoot"><div class="suggest"><button data-msg="What's on my list?">My todos</button><button data-msg="What should I focus on today?">Daily focus</button><button data-msg="Which PRs need review?">Review PRs</button></div><form id="chatForm" class="chatinput"><input id="chatInput" placeholder="Ask or manage your todos…" autocomplete="off" aria-label="Chat message"><button class="primary" type="submit">➤</button></form><div class="hint">Interactive demo · No AI connection</div></div></aside>
-</div>
-<script>
-const KEY='devdesk-demo-todos-v1';const INITIAL=[{id:1,text:'Review API error handling PR',done:false},{id:2,text:'Finish authentication refactoring',done:false},{id:3,text:'Check failing integration tests',done:true}];let todos;try{const saved=JSON.parse(localStorage.getItem(KEY));todos=Array.isArray(saved)?saved:INITIAL}catch{todos=INITIAL}const el=id=>document.getElementById(id);function persist(){localStorage.setItem(KEY,JSON.stringify(todos));render()}function render(){const list=el('todoList');list.innerHTML='';todos.forEach(t=>{const row=document.createElement('div');row.className='todo'+(t.done?' done':'');const box=document.createElement('input');box.type='checkbox';box.checked=t.done;box.addEventListener('change',()=>{t.done=box.checked;persist()});const title=document.createElement('span');title.className='todotext';title.textContent=t.text;title.title='Double click to edit';title.ondblclick=()=>{const update=prompt('Edit todo',t.text);if(update?.trim()){t.text=update.trim();persist()}};const del=document.createElement('button');del.className='delete';del.title='Remove';del.textContent='×';del.onclick=()=>{todos=todos.filter(x=>x.id!==t.id);persist()};row.append(box,title,del);list.append(row)});const open=todos.filter(t=>!t.done).length;el('todoCount').textContent=open+' open';el('todoFooter').textContent=`${todos.filter(t=>t.done).length} completed · Unfinished tasks carry over automatically.`}function addTodo(text){const value=text.trim();if(!value)return false;todos.unshift({id:Date.now()+Math.random(),text:value,done:false});persist();return true}el('todoForm').addEventListener('submit',e=>{e.preventDefault();if(addTodo(el('todoInput').value))el('todoInput').value=''});el('date').textContent=new Intl.DateTimeFormat('en-US',{weekday:'long',month:'short',day:'numeric'}).format(new Date()).toUpperCase();el('refresh').onclick=()=>{el('refresh').textContent='✓ Up to date';setTimeout(()=>el('refresh').textContent='↻ Refresh',1100)};function bubble(text,who){const b=document.createElement('div');b.className='bubble '+who;const heading=document.createElement('div');heading.className='author';heading.textContent=who==='user'?'You':'Assistant';b.append(heading,document.createTextNode(text));el('messages').append(b);el('messages').scrollTop=el('messages').scrollHeight}function reply(message){const m=message.toLowerCase();if(/^(add todo|add task|todo hinzufügen|füge hinzu)\s*[:\-]?\s*/i.test(message)){const title=message.replace(/^(add todo|add task|todo hinzufügen|füge hinzu)\s*[:\-]?\s*/i,'').trim();return addTodo(title)?`Added “${title}” to your todos.`:'What would you like to add?'}if(/(what.s on my list|my todos|meine todos|was steht heute)/i.test(m)){const open=todos.filter(t=>!t.done);return open.length?'Your open todos:\n'+open.map(t=>'• '+t.text).join('\n'):'Your todo list is clear!'}if(/(review|pr)/i.test(m))return 'Demo review requests: PR #312 (API error handling) and PR #309 (navigation refactor). Live Azure DevOps data will be available after backend integration.';if(/(focus|prioriti)/i.test(m)){const first=todos.find(t=>!t.done);return first?`Start with “${first.text}”, then check the review requests. (Demo suggestion only.)`:'No open todos. Check incoming work items!'}if(/^(complete|done|erledige|markiere)/i.test(m)){const match=todos.find(t=>!t.done&&m.includes(t.text.toLowerCase()));if(match){match.done=true;persist();return `Marked “${match.text}” as completed.`}return 'Mention the full todo title to mark it completed.'}return 'This is a UI prototype, not a connected AI. Try “add todo: my task” or “what’s on my list?”.'}function send(msg){const val=msg.trim();if(!val)return;bubble(val,'user');bubble(reply(val),'assistant')}el('chatForm').onsubmit=e=>{e.preventDefault();send(el('chatInput').value);el('chatInput').value=''};document.querySelectorAll('.suggest button').forEach(b=>b.onclick=()=>send(b.dataset.msg));
-const REPO_KEY='devdesk-repo-filters-v1';let enabledRepos=['frontend-app','backend-api'];try{const stored=JSON.parse(localStorage.getItem(REPO_KEY));if(Array.isArray(stored))enabledRepos=enabledRepos.filter(repo=>stored.includes(repo))}catch{}
-function applyRepoFilters(){document.querySelectorAll('[data-repo-toggle]').forEach(btn=>{const active=enabledRepos.includes(btn.dataset.repoToggle);btn.setAttribute('aria-pressed',String(active));btn.querySelector('.repo-check').textContent=active?'✓':'+'});document.querySelectorAll('.workrow[data-repo]').forEach(row=>{row.hidden=!enabledRepos.includes(row.dataset.repo);row.style.display=row.hidden?'none':''});for(const [section,unit] of [['work','items'],['reviews','PRs'],['mine','open']]){const label=document.querySelector('[data-count-for="'+section+'"]');const count=label.closest('section').querySelectorAll('.workrow[data-repo]:not([hidden])').length;label.textContent=count+' '+unit;const empty=label.closest('section').querySelector('.repo-filter-empty');if(empty)empty.remove();if(!count){const msg=document.createElement('div');msg.className='empty repo-filter-empty';msg.textContent='No items in selected repositories.';label.closest('section').append(msg)}}localStorage.setItem(REPO_KEY,JSON.stringify(enabledRepos))}
-document.querySelectorAll('[data-repo-toggle]').forEach(btn=>btn.addEventListener('click',()=>{const repo=btn.dataset.repoToggle;enabledRepos=enabledRepos.includes(repo)?enabledRepos.filter(r=>r!==repo):[...enabledRepos,repo];applyRepoFilters()}));applyRepoFilters();render();
-</script></body></html>
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<title>DevDesk - Dashboard Preview</title>
+		<style>
+			:root {
+				color-scheme: dark;
+				--bg: #0b0e13;
+				--panel: #121720;
+				--line: #27303d;
+				--text: #e7ebf1;
+				--muted: #a0acbd;
+				--accent: #a8b7ff;
+				--work-accent: #f0b86e;
+				--pr-accent: #8e9cff;
+			}
+			* { box-sizing: border-box; }
+			[hidden] { display: none !important; }
+			body {
+				margin: 0;
+				height: 100dvh;
+				overflow: hidden;
+				background: var(--bg);
+				color: var(--text);
+				font: 14px/1.5 ui-sans-serif, system-ui, sans-serif;
+			}
+			h1, h2, h3, p, ul { margin: 0; }
+			ul { padding: 0; list-style: none; }
+			h1 { margin-top: 4px; font-size: 30px; line-height: 1.2; font-weight: 600; }
+			h2 { font-size: 16px; font-weight: 600; }
+			h3 { font-size: 14px; font-weight: 500; }
+			p { color: var(--muted); }
+			button, input, textarea { font: inherit; color: inherit; }
+			button {
+				padding: 8px 12px;
+				border: 1px solid var(--line);
+				border-radius: 8px;
+				background: var(--panel);
+				font-size: 14px;
+				cursor: pointer;
+				transition: background-color 120ms;
+			}
+			button:hover:not(:disabled) { background: #222d3e; }
+			button:disabled { cursor: not-allowed; opacity: .5; }
+			input:not([type='checkbox']), textarea {
+				min-width: 0;
+				padding: 8px 12px;
+				border: 1px solid var(--line);
+				border-radius: 8px;
+				background: #0d121a;
+			}
+			input[type='checkbox'] { width: 16px; height: 16px; margin: 0; flex: none; accent-color: var(--accent); cursor: pointer; }
+			textarea { width: 100%; resize: vertical; }
+			:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+			.primary { background: #8b9eff; color: #11182b; font-weight: 700; }
+			button.primary:hover:not(:disabled) { background: #b2bfff; }
+			.danger { color: #ffaaaa; }
+			.app-shell {
+				display: grid;
+				grid-template-columns: 190px minmax(0, 1fr) 350px;
+				max-width: 1700px;
+				height: 100dvh;
+				min-height: 0;
+				overflow: hidden;
+				margin: auto;
+			}
+			.sidebar { padding: 26px 18px; border-right: 1px solid var(--line); background: #10141c; min-width: 0; min-height: 0; overflow-y: auto; }
+			.brand { display: flex; align-items: center; gap: 12px; font-size: 20px; font-weight: 700; }
+			.logo { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 8px; background: var(--accent); color: var(--bg); font-weight: 900; }
+			.eyebrow { margin-bottom: 8px; color: var(--accent); font-size: 10px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; }
+			.workspace-label { margin-top: 32px; }
+			.nav-item { padding: 8px 12px; border-radius: 8px; background: #222a3d; font-weight: 500; }
+			.scope-legends { display: flex; flex-direction: column; gap: 24px; margin-top: 32px; }
+			.scope-legends li + li { margin-top: 8px; }
+			.scope-label { display: inline-flex; align-items: center; gap: 8px; min-width: 0; font-size: 12px; overflow-wrap: anywhere; }
+			.legend-dot { width: 7px; height: 7px; border-radius: 50%; flex: none; background: var(--scope-color); }
+			.legend-note { margin-top: 12px; font-size: 10px; }
+			.local-status { margin-top: 32px; font-size: 12px; }
+			.main-content { padding: 30px; min-width: 0; min-height: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-gutter: stable; }
+			.workspace-header { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 24px; }
+			.header-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+			.card { margin-bottom: 20px; overflow: hidden; border: 1px solid var(--line); border-radius: 12px; background: var(--panel); }
+			.card-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 16px 20px; }
+			.badge { padding: 4px 8px; border-radius: 999px; background: #252d3b; color: var(--muted); font-size: 10px; }
+			.todo-form { display: flex; gap: 8px; padding: 0 20px 20px; }
+			.todo-form input { flex: 1; width: 0; }
+			.todo-row { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 12px 20px; border-top: 1px solid var(--line); overflow-wrap: anywhere; }
+			.todo-row[data-dragging] { background: #222d3e; box-shadow: inset 0 0 0 1px var(--accent); }
+			.drag-handle { display: grid; place-items: center; flex: none; width: 33px; height: 33px; padding: 0; border: 0; background: transparent; color: var(--muted); cursor: grab; }
+			.drag-handle:hover:not(:disabled) { background: transparent; color: var(--text); }
+			.todo-text { flex: 1; min-width: 0; }
+			.done .todo-text { color: var(--muted); text-decoration: line-through; }
+			.todo-actions { display: flex; flex-wrap: wrap; gap: 4px; }
+			.todo-actions button { padding: 4px 8px; font-size: 10px; }
+			.completed { border-top: 1px solid var(--line); }
+			.completed summary { padding: 12px 20px; color: var(--muted); font-size: 12px; cursor: pointer; }
+			.card-footer { padding: 12px 20px; border-top: 1px solid var(--line); color: var(--muted); font-size: 10px; overflow-wrap: anywhere; }
+			.empty { padding: 20px; color: var(--muted); font-size: 14px; }
+			.devops-tabs { display: flex; gap: 4px; padding: 8px; border-bottom: 1px solid var(--line); }
+			.devops-tab {
+				--tab-accent: var(--pr-accent);
+				display: flex;
+				align-items: center;
+				justify-content: space-between;
+				gap: 8px;
+				flex: 1;
+				min-width: 0;
+				padding: 12px;
+				border: 0;
+				border-bottom: 2px solid transparent;
+				border-radius: 8px 8px 0 0;
+				background: transparent;
+				color: var(--muted);
+				font-size: 12px;
+				overflow-wrap: anywhere;
+				text-align: left;
+			}
+			.devops-tab[data-dataset='work'] { --tab-accent: var(--work-accent); }
+			.devops-tab[aria-selected='true'] { border-bottom-color: var(--tab-accent); background: #222a3d; color: var(--tab-accent); }
+			.tab-count { flex: none; min-width: 24px; color: var(--tab-accent); background: color-mix(in srgb, var(--tab-accent) 15%, transparent); text-align: center; }
+			.devops-panel-content { padding-top: 16px; }
+			.scope-chips { display: flex; flex-wrap: wrap; gap: 8px; padding: 0 20px 16px; }
+			.scope-chip { display: inline-flex; align-items: center; gap: 8px; min-width: 0; max-width: 100%; min-height: 32px; padding: 5px 10px; border-color: var(--scope-color); border-radius: 999px; background: transparent; text-align: left; }
+			.scope-chip[aria-pressed='true'] { background: color-mix(in srgb, var(--scope-color) 20%, transparent); font-weight: 700; }
+			.scope-count { flex: none; font-size: 10px; font-weight: 700; }
+			.scope-timestamp { padding: 0 20px 12px; font-size: 12px; }
+			.work-row { position: relative; display: flex; gap: 12px; padding: 12px 20px; border-top: 1px solid var(--line); }
+			.work-marker { position: absolute; inset: 0 auto 0 0; width: 3px; background: var(--scope-color); }
+			.work-detail { min-width: 0; flex: 1; overflow-wrap: anywhere; }
+			.work-detail > .scope-label { margin-bottom: 8px; }
+			.work-title { color: var(--accent); font-weight: 500; }
+			.work-meta { margin-top: 4px; font-size: 12px; }
+			.review-votes { display: grid; gap: 12px; margin-top: 12px; }
+			.review-row-label { margin-bottom: 6px; font-size: 10px; font-weight: 600; }
+			.review-row { display: flex; flex-wrap: wrap; gap: 6px; }
+			.review-chip { --review-color: var(--muted); display: inline-flex; align-items: center; gap: 6px; max-width: 100%; padding: 5px 9px; border: 1px solid color-mix(in srgb, var(--review-color) 30%, transparent); border-radius: 12px; background: color-mix(in srgb, var(--review-color) 10%, transparent); color: var(--review-color); font-size: 12px; overflow-wrap: anywhere; }
+			.review-chip[data-vote='approved'] { --review-color: #86efac; }
+			.review-chip[data-vote='waiting'] { --review-color: #fcd34d; }
+			.review-chip-name { font-weight: 600; }
+			.notice { display: block; margin-bottom: 12px; padding: 12px; border: 1px solid #47526c; border-radius: 8px; background: #182031; font-size: 14px; }
+			.desktop-chat { min-width: 0; min-height: 0; border-left: 1px solid var(--line); background: #10151d; }
+			.chat-panel { display: flex; height: 100%; min-height: 0; flex-direction: column; }
+			.chat-header { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 20px; border-bottom: 1px solid var(--line); flex-shrink: 0; }
+			.chat-header p, .chat-header button { font-size: 12px; }
+			.chat-header-actions { display: flex; gap: 8px; }
+			.messages { min-height: 0; flex: 1; overflow-y: auto; padding: 16px; overflow-wrap: anywhere; }
+			.bubble { margin-bottom: 12px; padding: 12px; border-radius: 12px; background: #1c2533; font-size: 12px; line-height: 1.625; white-space: pre-line; }
+			.bubble.user { margin-left: 26px; background: #293456; }
+			.bubble.assistant { margin-right: 12px; }
+			.bubble-header { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; margin-bottom: 8px; font-size: 10px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; }
+			.bubble time { display: block; margin-top: 8px; color: var(--muted); font-size: 10px; }
+			.chat-empty { padding: 32px 0; }
+			.chat-empty p { margin-top: 8px; }
+			.chat-form { padding: 16px; border-top: 1px solid var(--line); flex-shrink: 0; }
+			.chat-form textarea { display: block; max-height: 25dvh; }
+			.composer-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 8px; }
+			.chat-disclosure { margin-top: 12px; font-size: 10px; line-height: 1.625; }
+			.modal { width: min(540px, calc(100% - 24px)); max-height: calc(100dvh - 24px); margin: auto; padding: 0; overflow-y: auto; color: var(--text); background: var(--panel); border: 1px solid var(--line); border-radius: 14px; }
+			.modal::backdrop { background: #000a; }
+			.modal-content { padding: 24px; }
+			.modal-content h2 { margin-bottom: 16px; }
+			.modal-content input { width: 100%; }
+			.modal-content p { margin-bottom: 16px; overflow-wrap: anywhere; }
+			.modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 20px; }
+			.drawer { width: min(450px, 100%); max-width: 100%; height: 100dvh; max-height: 100dvh; margin: 0 0 0 auto; border-radius: 0; background: #10151d; }
+			.drawer[open] { display: flex; flex-direction: column; }
+			.drawer > .chat-panel { flex: 1; overflow: hidden; }
+			.mobile-chat, .close-chat { display: none; }
+			@media (max-width: 1200px) {
+				.app-shell { grid-template-columns: 155px minmax(0, 1fr); }
+				.main-content { padding: 24px; }
+				.desktop-chat { display: none; }
+				.mobile-chat, .close-chat { display: inline-block; }
+			}
+			@media (max-width: 700px) {
+				.app-shell { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); }
+				.sidebar { max-height: 32dvh; padding: 16px; border-right: 0; border-bottom: 1px solid var(--line); }
+				.sidebar > p, .sidebar .nav-item { display: none; }
+				.scope-legends { flex-direction: row; flex-wrap: wrap; gap: 16px; margin-top: 16px; }
+				.scope-legends > section { flex: 1; min-width: 130px; }
+				.main-content { padding: 20px 14px; }
+				.devops-tab { padding: 10px 6px; font-size: 11px; }
+				.todo-actions { width: 100%; justify-content: flex-end; }
+				h1 { font-size: 25px; }
+			}
+			@media (prefers-reduced-motion: reduce) {
+				*, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
+			}
+		</style>
+	</head>
+	<body>
+		<div class="app-shell">
+			<aside class="sidebar" aria-label="Workspace context">
+				<div class="brand"><span class="logo">D</span> DevDesk</div>
+				<p class="eyebrow workspace-label">Workspace</p>
+				<div class="nav-item">Overview</div>
+				<div class="scope-legends">
+					<section aria-label="PR repository legend">
+						<h2 class="eyebrow">PR repositories</h2>
+						<ul>
+							<li><span class="scope-label" style="--scope-color: #8e9cff"><span class="legend-dot" aria-hidden="true"></span>frontend-app</span></li>
+							<li><span class="scope-label" style="--scope-color: #67c9aa"><span class="legend-dot" aria-hidden="true"></span>backend-api</span></li>
+						</ul>
+					</section>
+					<section aria-label="Team board legend">
+						<h2 class="eyebrow">My team boards</h2>
+						<ul>
+							<li><span class="scope-label" style="--scope-color: #ffd166"><span class="legend-dot" aria-hidden="true"></span>DevDesk / Frontend</span></li>
+							<li><span class="scope-label" style="--scope-color: #dc2626"><span class="legend-dot" aria-hidden="true"></span>DevDesk / Backend</span></li>
+						</ul>
+						<p class="legend-note">Area-path scopes, not board columns. Multiple matches are shown.</p>
+					</section>
+				</div>
+				<p class="local-status">Local workspace<br />Stored in this browser</p>
+			</aside>
+			<main class="main-content" aria-label="Workspace content">
+				<header class="workspace-header">
+					<div>
+						<p class="eyebrow">Your local workspace</p>
+						<h1>Less noise. More focus.</h1>
+						<p>One persistent list. Your work, in context.</p>
+					</div>
+					<div class="header-actions">
+						<button class="mobile-chat" id="openChat" type="button">Open chat</button>
+						<button id="refresh" type="button" title="Sample data; no Azure DevOps connection">Refresh Azure DevOps</button>
+					</div>
+				</header>
+				<output class="notice" id="storageNotice" hidden>Browser storage is unavailable. Changes last only while this page is open.</output>
+				<section class="card" aria-labelledby="todos-title">
+					<header class="card-header"><h2 id="todos-title">Your todos</h2><span class="badge" id="todoCount">0 open</span></header>
+					<form id="todoForm" class="todo-form">
+						<input id="todoInput" placeholder="Add a task and press Enter..." autocomplete="off" aria-label="New todo" maxlength="500" />
+						<button class="primary" id="addTodo" type="submit" disabled>Add todo</button>
+					</form>
+					<ul id="todoList"></ul>
+					<p class="empty" id="todoEmpty" hidden>No open todos.</p>
+					<details class="completed" id="completedTodos">
+						<summary id="completedCount">Completed (0)</summary>
+						<ul id="completedList"></ul>
+					</details>
+					<footer class="card-footer">Unfinished todos stay until you complete or delete them.</footer>
+				</section>
+				<section class="card" aria-label="Azure DevOps">
+					<div class="devops-tabs" role="tablist" aria-label="Azure DevOps views">
+						<button type="button" role="tab" id="tab-work" class="devops-tab" data-dataset="work" aria-controls="panel-work" aria-selected="true"><span>Assigned work items</span><span class="badge tab-count">3</span></button>
+						<button type="button" role="tab" id="tab-reviews" class="devops-tab" data-dataset="reviews" aria-controls="panel-reviews" aria-selected="false" tabindex="-1"><span>Review requests</span><span class="badge tab-count">2</span></button>
+						<button type="button" role="tab" id="tab-own" class="devops-tab" data-dataset="own" aria-controls="panel-own" aria-selected="false" tabindex="-1"><span>Your pull requests</span><span class="badge tab-count">2</span></button>
+					</div>
+					<div role="tabpanel" id="panel-work" class="devops-panel-content" aria-labelledby="tab-work"></div>
+					<div role="tabpanel" id="panel-reviews" class="devops-panel-content" aria-labelledby="tab-reviews" hidden></div>
+					<div role="tabpanel" id="panel-own" class="devops-panel-content" aria-labelledby="tab-own" hidden></div>
+				</section>
+			</main>
+			<aside class="desktop-chat" id="chatHost" aria-label="Copilot assistant">
+				<div class="chat-panel" id="chatPanel">
+					<header class="chat-header">
+						<div><h2>Copilot assistant</h2><p>Demo · No AI connection</p></div>
+						<div class="chat-header-actions">
+							<button id="clearChat" type="button">Clear</button>
+							<button id="closeChat" class="close-chat" type="button">Close</button>
+						</div>
+					</header>
+					<div class="messages" id="messages" role="log" aria-label="Conversation"></div>
+					<form id="chatForm" class="chat-form">
+						<textarea id="chatInput" aria-label="Message to Copilot" placeholder="Ask about your work..." rows="3" maxlength="8000"></textarea>
+						<div class="composer-actions"><button class="primary" id="sendChat" type="submit" disabled>Send</button></div>
+						<p class="chat-disclosure">Local demo. Messages stay in this page; no content is sent to GitHub Copilot or Azure DevOps.</p>
+					</form>
+				</div>
+			</aside>
+		</div>
+		<dialog class="modal drawer" id="chatDrawer" aria-label="Copilot chat"></dialog>
+		<dialog class="modal" id="actionDialog" aria-labelledby="dialogTitle">
+			<form id="dialogForm" class="modal-content">
+				<h2 id="dialogTitle">Edit todo</h2>
+				<p id="dialogDescription" hidden></p>
+				<input id="editInput" aria-label="Todo title" maxlength="500" />
+				<div class="modal-actions">
+					<button type="button" id="cancelAction">Cancel</button>
+					<button type="submit" class="primary" id="confirmAction">Save changes</button>
+				</div>
+			</form>
+		</dialog>
+		<script>
+			const storageKey = 'devdesk-demo-todos-v1';
+			const initialTodos = [
+				{ id: 1, text: 'Review API error handling PR', done: false },
+				{ id: 2, text: 'Finish authentication refactoring', done: false },
+				{ id: 3, text: 'Check failing integration tests', done: true },
+			];
+			const element = (id) => document.getElementById(id);
+			let todos = initialTodos;
+			try {
+				const saved = JSON.parse(localStorage.getItem(storageKey));
+				if (Array.isArray(saved) && saved.every((todo) => todo && (typeof todo.id === 'number' || typeof todo.id === 'string') && typeof todo.text === 'string' && typeof todo.done === 'boolean')) {
+					todos = saved;
+				}
+			} catch {
+				element('storageNotice').hidden = false;
+			}
+			let pendingAction = null;
+			let draggedTodo = null;
+			const scopes = {
+				frontend: { label: 'DevDesk / Frontend', color: '#ffd166' },
+				backend: { label: 'DevDesk / Backend', color: '#dc2626' },
+				'frontend-app': { label: 'frontend-app', color: '#8e9cff' },
+				'backend-api': { label: 'backend-api', color: '#67c9aa' },
+			};
+			const datasets = {
+				work: [
+					{ id: 4821, title: 'Update authentication flow', scope: 'frontend', meta: 'DevDesk / User Story / Active / Priority 2', detail: String.raw`DevDesk\Frontend` },
+					{ id: 4798, title: 'Fix session timeout handling', scope: 'backend', meta: 'DevDesk / Bug / New / Priority 1', detail: String.raw`DevDesk\Backend` },
+					{ id: 4752, title: 'Add integration tests', scope: 'backend', meta: 'DevDesk / Task / Active / Priority 2', detail: String.raw`DevDesk\Backend` },
+				],
+				reviews: [
+					{ id: 312, title: 'Improve API error handling', scope: 'backend-api', meta: 'DevDesk / Alex / Active', detail: 'fix/api-errors → main', reviewers: [{ name: 'You', vote: 'neutral', label: 'No vote' }, { name: 'Sam', vote: 'approved', label: 'Approved' }] },
+					{ id: 309, title: 'Refactor navigation', scope: 'frontend-app', meta: 'DevDesk / Sam / Active', detail: 'refactor/navigation → main', reviewers: [{ name: 'You', vote: 'neutral', label: 'No vote' }, { name: 'Alex', vote: 'waiting', label: 'Waiting for author' }] },
+				],
+				own: [
+					{ id: 315, title: 'Add token refresh support', scope: 'frontend-app', meta: 'DevDesk / You / Active', detail: 'feature/token-refresh → main', reviewers: [{ name: 'Alex', vote: 'approved', label: 'Approved' }, { name: 'Sam', vote: 'neutral', label: 'No vote' }] },
+					{ id: 307, title: 'Extend audit logging', scope: 'backend-api', meta: 'DevDesk / You / Draft', detail: 'feature/audit-log → main', reviewers: [{ name: 'Sam', vote: 'neutral', label: 'No vote' }] },
+				],
+			};
+			const selections = { work: 'frontend', reviews: 'frontend-app', own: 'frontend-app' };
+
+			function makeElement(tag, className, text) {
+				const node = document.createElement(tag);
+				node.className = className;
+				if (text !== undefined) {
+					node.textContent = text;
+				}
+				return node;
+			}
+
+			function button(text, label, action) {
+				const control = makeElement('button', '', text);
+				control.type = 'button';
+				control.setAttribute('aria-label', label);
+				control.addEventListener('click', action);
+				return control;
+			}
+
+			function persist() {
+				try {
+					localStorage.setItem(storageKey, JSON.stringify(todos));
+				} catch {
+					element('storageNotice').hidden = false;
+				}
+				renderTodos();
+			}
+
+			function moveTodo(id, offset) {
+				const open = todos.filter((todo) => !todo.done);
+				const index = open.findIndex((todo) => todo.id === id);
+				const target = index + offset;
+				if (index < 0 || target < 0 || target >= open.length) {
+					return;
+				}
+				const [moved] = open.splice(index, 1);
+				open.splice(target, 0, moved);
+				todos = [...open, ...todos.filter((todo) => todo.done)];
+				persist();
+			}
+
+			function openAction(title, description, confirmLabel, action, todo) {
+				element('dialogTitle').textContent = title;
+				element('dialogDescription').textContent = description;
+				element('dialogDescription').hidden = !description;
+				element('editInput').hidden = !todo;
+				element('editInput').required = Boolean(todo);
+				element('editInput').value = todo?.text ?? '';
+				element('confirmAction').textContent = confirmLabel;
+				element('confirmAction').disabled = false;
+				element('confirmAction').className = todo ? 'primary' : 'danger';
+				pendingAction = action;
+				element('actionDialog').showModal();
+				if (todo) {
+					element('editInput').focus();
+					element('editInput').select();
+				} else {
+					element('cancelAction').focus();
+				}
+			}
+
+			function renderTodos() {
+				const open = todos.filter((todo) => !todo.done);
+				element('todoList').replaceChildren();
+				element('completedList').replaceChildren();
+				for (const todo of todos) {
+					const row = makeElement('li', `todo-row${todo.done ? ' done' : ''}`);
+					if (!todo.done) {
+						const handle = makeElement('button', 'drag-handle', '⠿');
+						handle.type = 'button';
+						handle.setAttribute('aria-label', `Reorder ${todo.text}`);
+						handle.title = 'Drag to reorder';
+						handle.draggable = true;
+						handle.addEventListener('dragstart', (event) => {
+							draggedTodo = todo.id;
+							event.dataTransfer.setData('text/plain', String(todo.id));
+							event.dataTransfer.effectAllowed = 'move';
+							row.dataset.dragging = '';
+						});
+						handle.addEventListener('dragend', () => {
+							delete row.dataset.dragging;
+							draggedTodo = null;
+						});
+						handle.addEventListener('keydown', (event) => {
+							if (event.key === 'ArrowUp' || event.key === 'ArrowDown') {
+								event.preventDefault();
+								moveTodo(todo.id, event.key === 'ArrowUp' ? -1 : 1);
+								const nextHandle = [...element('todoList').querySelectorAll('.drag-handle')].find((control) => control.getAttribute('aria-label') === `Reorder ${todo.text}`);
+								nextHandle?.focus();
+							}
+						});
+						row.addEventListener('dragover', (event) => event.preventDefault());
+						row.addEventListener('drop', (event) => {
+							event.preventDefault();
+							const source = open.findIndex((item) => item.id === draggedTodo);
+							if (source >= 0) {
+								moveTodo(draggedTodo, open.indexOf(todo) - source);
+							}
+							draggedTodo = null;
+						});
+						row.append(handle);
+					}
+					const checkbox = document.createElement('input');
+					checkbox.type = 'checkbox';
+					checkbox.checked = todo.done;
+					checkbox.setAttribute('aria-label', `${todo.done ? 'Reopen' : 'Complete'} ${todo.text}`);
+					checkbox.addEventListener('change', () => {
+						todo.done = checkbox.checked;
+						persist();
+					});
+					const actions = makeElement('div', 'todo-actions');
+					if (!todo.done) {
+						const index = open.indexOf(todo);
+						const up = button('Up', `Move ${todo.text} up`, () => moveTodo(todo.id, -1));
+						const down = button('Down', `Move ${todo.text} down`, () => moveTodo(todo.id, 1));
+						up.disabled = index === 0;
+						down.disabled = index === open.length - 1;
+						actions.append(up, down);
+					}
+					const edit = button('Edit', `Edit ${todo.text}`, () => openAction('Edit todo', '', 'Save changes', () => {
+						todo.text = element('editInput').value.trim();
+						persist();
+					}, todo));
+					const remove = button('Delete', `Delete ${todo.text}`, () => openAction('Delete todo?', todo.text, 'Delete todo', () => {
+						todos = todos.filter((item) => item.id !== todo.id);
+						persist();
+					}));
+					remove.className = 'danger';
+					actions.append(edit, remove);
+					row.append(checkbox, makeElement('span', 'todo-text', todo.text), actions);
+					element(todo.done ? 'completedList' : 'todoList').append(row);
+				}
+				element('todoCount').textContent = `${open.length} open`;
+				element('todoEmpty').hidden = open.length > 0;
+				element('completedCount').textContent = `Completed (${todos.length - open.length})`;
+				element('completedTodos').hidden = todos.length === open.length;
+			}
+
+			function addTodo(text) {
+				const value = text.trim();
+				if (!value) {
+					return false;
+				}
+				todos.unshift({ id: Date.now() + Math.random(), text: value, done: false });
+				persist();
+				return true;
+			}
+
+			function scopeLabel(scope) {
+				const label = makeElement('span', 'scope-label');
+				label.style.setProperty('--scope-color', scope.color);
+				const dot = makeElement('span', 'legend-dot');
+				dot.setAttribute('aria-hidden', 'true');
+				label.append(dot, makeElement('span', '', scope.label));
+				return label;
+			}
+
+			function renderPanel(dataset) {
+				const panel = element(`panel-${dataset}`);
+				panel.replaceChildren();
+				const chips = makeElement('div', 'scope-chips');
+				chips.setAttribute('role', 'group');
+				chips.setAttribute('aria-label', dataset === 'work' ? 'Filter work items by team' : 'Filter pull requests by repository');
+				const scopeIds = dataset === 'work' ? ['frontend', 'backend'] : ['frontend-app', 'backend-api'];
+				for (const scopeId of scopeIds) {
+					const scope = scopes[scopeId];
+					const count = datasets[dataset].filter((row) => row.scope === scopeId).length;
+					const chip = button('', `${scope.label}, ${count} ${count === 1 ? 'item' : 'items'}`, () => {
+						selections[dataset] = scopeId;
+						renderPanel(dataset);
+						panel.querySelector('[aria-pressed="true"]').focus();
+					});
+					chip.className = 'scope-chip';
+					chip.style.setProperty('--scope-color', scope.color);
+					chip.setAttribute('aria-pressed', String(selections[dataset] === scopeId));
+					chip.append(scopeLabel(scope), makeElement('span', 'scope-count', String(count)));
+					chips.append(chip);
+				}
+				panel.append(chips);
+				if (dataset === 'work') {
+					panel.append(makeElement('p', 'scope-timestamp', 'Team scopes: DevDesk / Sample data'));
+				}
+				for (const item of datasets[dataset].filter((row) => row.scope === selections[dataset])) {
+					const row = makeElement('article', 'work-row');
+					row.style.setProperty('--scope-color', scopes[item.scope].color);
+					const marker = makeElement('span', 'work-marker');
+					marker.setAttribute('aria-hidden', 'true');
+					const detail = makeElement('div', 'work-detail');
+					detail.append(scopeLabel(scopes[item.scope]), makeElement('h3', 'work-title', `${dataset === 'work' ? '#' : 'PR'}${item.id} ${item.title}`), makeElement('p', 'work-meta', item.meta), makeElement('p', 'work-meta', item.detail));
+					if (item.reviewers) {
+						const votes = makeElement('div', 'review-votes');
+						const group = makeElement('div', '');
+						const reviewers = makeElement('ul', 'review-row');
+						for (const reviewer of item.reviewers) {
+							const chip = makeElement('li', 'review-chip');
+							chip.dataset.vote = reviewer.vote;
+							chip.append(makeElement('span', 'review-chip-name', reviewer.name), makeElement('span', '', reviewer.label));
+							reviewers.append(chip);
+						}
+						group.append(makeElement('p', 'review-row-label', 'Reviewers'), reviewers);
+						votes.append(group);
+						detail.append(votes);
+					}
+					row.append(marker, detail);
+					panel.append(row);
+				}
+				panel.append(makeElement('footer', 'card-footer', `DevDesk / ${dataset === 'work' ? 'Assigned work items' : 'Pull requests'}: Sample data`));
+			}
+
+			function activateTab(tab) {
+				for (const control of document.querySelectorAll('[role="tab"]')) {
+					const active = control === tab;
+					control.setAttribute('aria-selected', String(active));
+					control.tabIndex = active ? 0 : -1;
+					element(control.getAttribute('aria-controls')).hidden = !active;
+				}
+			}
+
+			function bubble(text, role) {
+				element('chatEmpty')?.remove();
+				const message = makeElement('article', `bubble ${role}`);
+				const heading = makeElement('div', 'bubble-header');
+				heading.append(makeElement('span', '', role), makeElement('span', '', 'Completed'));
+				const timestamp = makeElement('time', '', new Intl.DateTimeFormat('en-US', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date()));
+				timestamp.dateTime = new Date().toISOString();
+				message.append(heading, document.createTextNode(text), timestamp);
+				element('messages').append(message);
+				element('messages').scrollTop = element('messages').scrollHeight;
+				element('clearChat').disabled = false;
+			}
+
+			function clearConversation() {
+				const empty = makeElement('div', 'chat-empty');
+				empty.id = 'chatEmpty';
+				empty.append(makeElement('h3', '', 'A little less context switching.'), makeElement('p', '', 'Ask about your work, summarize a PR, or tell me to create a todo.'));
+				element('messages').replaceChildren(empty);
+				element('clearChat').disabled = true;
+			}
+
+			function sendMessage() {
+				const input = element('chatInput');
+				const text = input.value.trim();
+				if (!text) {
+					return;
+				}
+				bubble(text, 'user');
+				input.value = '';
+				element('sendChat').disabled = true;
+				const add = text.match(/^(?:add todo|add task|todo|create todo)\s*:\s*(.+)$/is);
+				if (add) {
+					addTodo(add[1]);
+					bubble(`Added to your todos: ${add[1].trim()}`, 'assistant');
+				} else if (/review|pull request|\bpr\b/i.test(text)) {
+					bubble('Two PRs need review:\n\nPR312 Improve API error handling · backend-api · Alex\nPR309 Refactor navigation · frontend-app · Sam', 'assistant');
+				} else {
+					const open = todos.filter((todo) => !todo.done);
+					const list = open.map((todo, index) => `${index + 1}. ${todo.text}`).join('\n');
+					bubble(open.length ? `Your ${open.length} open todos:\n\n${list}` : 'Your list is clear. No open todos.', 'assistant');
+				}
+			}
+
+			element('todoInput').addEventListener('input', () => {
+				element('addTodo').disabled = !element('todoInput').value.trim();
+			});
+			element('todoForm').addEventListener('submit', (event) => {
+				event.preventDefault();
+				if (addTodo(element('todoInput').value)) {
+					element('todoInput').value = '';
+					element('addTodo').disabled = true;
+					element('todoInput').focus();
+				}
+			});
+			element('editInput').addEventListener('input', () => {
+				element('confirmAction').disabled = !element('editInput').value.trim();
+			});
+			element('cancelAction').addEventListener('click', () => element('actionDialog').close());
+			element('dialogForm').addEventListener('submit', (event) => {
+				event.preventDefault();
+				if (!element('editInput').hidden && !element('editInput').value.trim()) {
+					return;
+				}
+				pendingAction?.();
+				element('actionDialog').close();
+			});
+			const tabs = [...document.querySelectorAll('[role="tab"]')];
+			for (const [index, tab] of tabs.entries()) {
+				tab.addEventListener('click', () => activateTab(tab));
+				tab.addEventListener('keydown', (event) => {
+					const targets = { ArrowRight: (index + 1) % tabs.length, ArrowLeft: (index + tabs.length - 1) % tabs.length, Home: 0, End: tabs.length - 1 };
+					if (targets[event.key] !== undefined) {
+						event.preventDefault();
+						const target = tabs[targets[event.key]];
+						activateTab(target);
+						target.focus();
+					}
+				});
+				renderPanel(tab.dataset.dataset);
+			}
+			element('refresh').addEventListener('click', () => {
+				for (const dataset of Object.keys(datasets)) {
+					renderPanel(dataset);
+				}
+				element('refresh').textContent = 'Demo data refreshed';
+				setTimeout(() => { element('refresh').textContent = 'Refresh Azure DevOps'; }, 1200);
+			});
+			element('chatInput').addEventListener('input', () => {
+				element('sendChat').disabled = !element('chatInput').value.trim();
+			});
+			element('chatInput').addEventListener('keydown', (event) => {
+				if (event.key === 'Enter' && !event.shiftKey && !event.isComposing && event.keyCode !== 229) {
+					event.preventDefault();
+					if (!event.repeat) {
+						sendMessage();
+					}
+				}
+			});
+			element('chatForm').addEventListener('submit', (event) => {
+				event.preventDefault();
+				sendMessage();
+			});
+			element('clearChat').addEventListener('click', () => openAction('Clear conversation?', 'All messages in this preview will be removed. Your todos are kept.', 'Clear conversation', clearConversation));
+			element('openChat').addEventListener('click', () => {
+				element('chatDrawer').append(element('chatPanel'));
+				element('chatDrawer').showModal();
+				element('chatInput').focus();
+			});
+			element('closeChat').addEventListener('click', () => element('chatDrawer').close());
+			element('chatDrawer').addEventListener('close', () => element('chatHost').append(element('chatPanel')));
+			matchMedia('(min-width: 1201px)').addEventListener('change', (event) => {
+				if (event.matches && element('chatDrawer').open) {
+					element('chatDrawer').close();
+				}
+			});
+			renderTodos();
+			clearConversation();
+			bubble(`Your workspace is ready. You have ${todos.filter((todo) => !todo.done).length} open todos and two pull requests waiting for review.`, 'assistant');
+		</script>
+	</body>
+</html>

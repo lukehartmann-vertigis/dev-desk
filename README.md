@@ -218,6 +218,24 @@ parity, and real conversation restoration cannot be certified without your
 tokens. They are not silently treated as passing checks or an up-front
 implementation blocker. See the [acceptance report](docs/verification/application.md).
 
+### Publishing the source
+
+- Never force-add ignored credentials, databases, SDK state, logs, test outputs,
+  or backup archives. A directory/archive upload can include ignored files;
+  `.gitignore` only protects ordinary Git staging.
+- Public documentation omits live team/area names, workspace inventories, and
+  real user-data counts. Synthetic fixtures, test totals, and technical
+  measurements are not live account data.
+- The checkout still contains workspace-specific configuration defaults and
+  provider identifiers. These are not credentials, but require organizational
+  approval before public sharing.
+- Review every branch/tag intended for publication and its history, including
+  commit author/committer identities. Editing the current files does not remove
+  information from earlier commits. No history cleanup is implied by a current
+  checkout review.
+- Publishing source does not make the application safe for public hosting:
+  it remains a local single-user service without a multi-user login.
+
 ## Concept documentation
 
 | Document | Purpose |
@@ -225,7 +243,7 @@ implementation blocker. See the [acceptance report](docs/verification/applicatio
 | [Requirements](docs/requirements/REQUIREMENTS.md) | Approved baseline and stable acceptance contracts |
 | [Todos](docs/requirements/todos.md) | Persistent list behavior |
 | [Azure DevOps](docs/requirements/azure-devops.md) | Read-only views, scope, synchronization, and group review rules |
-| [Azure DevOps concept](docs/azure-devops-concept.md) | Selected project/repositories and observed metadata |
+| [Azure DevOps concept](docs/azure-devops-concept.md) | Selected project/repositories and structural conclusions |
 | [Assistant](docs/requirements/assistant.md) | Intent, permissions, run limits, and clearable conversation |
 | [Experience and operations](docs/requirements/experience-and-operations.md) | UI, reliability, and operational requirements |
 | [Frontend concept](docs/frontend-concept.md) | Accepted visual baseline and responsive behavior |

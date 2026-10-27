@@ -297,6 +297,53 @@ button.primary:hover:not(:disabled) {
 .work-marker > span {
 	flex: 1;
 }
+.review-votes {
+	display: grid;
+	gap: 12px;
+	margin-top: 4px;
+}
+.review-row-label {
+	margin-bottom: 6px;
+	font-size: 10px;
+	font-weight: 600;
+}
+.review-row {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 6px;
+}
+.review-chip {
+	--review-color: var(--muted);
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	min-width: 0;
+	max-width: 100%;
+	padding: 5px 9px;
+	border: 1px solid color-mix(in srgb, var(--review-color) 30%, transparent);
+	border-radius: 12px;
+	background: color-mix(in srgb, var(--review-color) 10%, transparent);
+	color: var(--review-color);
+	overflow-wrap: anywhere;
+}
+.review-chip > svg {
+	flex: none;
+}
+.review-chip > span {
+	min-width: 0;
+}
+.review-chip-name {
+	font-weight: 600;
+}
+.review-chip[data-vote='approved'] {
+	--review-color: #86efac;
+}
+.review-chip[data-vote='waiting'] {
+	--review-color: #fcd34d;
+}
+.review-chip[data-vote='rejected'] {
+	--review-color: #fca5a5;
+}
 .notice {
 	@apply mb-3 rounded-lg border p-3 text-sm;
 	border-color: #47526c;
