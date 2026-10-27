@@ -65,10 +65,27 @@ test('TODO-008/UX-003: pointer and keyboard ordering persists', async ({ page })
 	await expect(page.locator('.todo-row').filter({ hasText: prefix }).first()).toContainText(
 		`${prefix} two`,
 	);
-	await page
-		.locator('.todo-row')
-		.filter({ hasText: `${prefix} one` })
-		.dragTo(page.locator('.todo-row').filter({ hasText: `${prefix} two` }));
+	const source = page.getByRole('button', { name: `Reorder ${prefix} one`, exact: true });
+	const target = page.getByRole('button', { name: `Reorder ${prefix} two`, exact: true });
+	await source.scrollIntoViewIfNeeded();
+	await target.scrollIntoViewIfNeeded();
+	const from = await source.boundingBox();
+	const to = await target.boundingBox();
+	if (!from || !to) {
+		throw new Error('Missing pointer drag handle coordinates.');
+	}
+	const count = await page.getByRole('button', { name: /^Reorder / }).count();
+	await page.mouse.move(from.x + from.width / 2, from.y + from.height / 2);
+	await page.mouse.down();
+	await page.mouse.move(from.x + from.width / 2 + 10, from.y + from.height / 2);
+	await expect(source).toHaveAttribute('aria-pressed', 'true');
+	await page.mouse.move(to.x + to.width / 2, to.y + to.height / 2, { steps: 10 });
+	await expect(page.getByRole('status')).toHaveText(`Over position ${count - 1} of ${count}.`);
+	await page.mouse.up();
+	await expect(page.locator('.todo-row').filter({ hasText: prefix }).first()).toContainText(
+		`${prefix} one`,
+	);
+	await page.reload();
 	await expect(page.locator('.todo-row').filter({ hasText: prefix }).first()).toContainText(
 		`${prefix} one`,
 	);
@@ -351,7 +368,17 @@ test('ADO-003/004/005/008/010, UX-005/OPS-007: populated tabs, safe text and dis
 			},
 		],
 	};
-	await page.route('**/api/state', (route) => route.fulfill({ json: state }));
+	let stateReads = 0;
+	const mutations: string[] = [];
+	page.on('request', (request) => {
+		if (request.url().includes('/api/') && request.method() !== 'GET') {
+			mutations.push(request.url());
+		}
+	});
+	await page.route('**/api/state', (route) => {
+		stateReads += 1;
+		return route.fulfill({ json: state });
+	});
 	await page.goto('/');
 	const workTab = page.getByRole('tab', { name: /^Assigned work items/ });
 	const reviewTab = page.getByRole('tab', { name: /^Review requests/ });
@@ -449,12 +476,28 @@ test('ADO-003/004/005/008/010, UX-005/OPS-007: populated tabs, safe text and dis
 	await expect(
 		page.locator('.work-row').filter({ hasText: 'Child area work' }).locator('.scope-label'),
 	).toHaveText('Utilities / Alpha board');
+	const chips = page.getByRole('group', { name: 'Filter work items by team' });
+	const readsBeforeChips = stateReads;
+	await expect(chips.getByRole('button', { pressed: true })).toHaveCount(1);
+	await expect(chips.getByRole('button').first()).toHaveAttribute('aria-pressed', 'true');
+	await expect(page.locator('.work-row')).toHaveCount(2);
+	const beta = chips.getByRole('button', { name: 'Utilities / Beta board, 1 item', exact: true });
+	await beta.focus();
+	await page.keyboard.press('Enter');
+	await expect(beta).toHaveAttribute('aria-pressed', 'true');
+	await expect(page.locator('.work-row')).toHaveCount(1);
+	await expect(workRow).toBeVisible();
+	await expect(chips.getByRole('button', { pressed: true })).toHaveCount(1);
+	await chips.getByRole('button', { name: 'No team, 1 item', exact: true }).click();
 	await expect(
 		page.locator('.work-row').filter({ hasText: 'Unmatched area work' }),
 	).toContainText('No matching team board');
+	await chips.getByRole('button', { name: 'Assignment unknown, 1 item', exact: true }).click();
 	await expect(page.locator('.work-row').filter({ hasText: 'Unknown area work' })).toContainText(
 		'Board mapping unavailable',
 	);
+	expect(stateReads).toBe(readsBeforeChips);
+	expect(mutations).toEqual([]);
 	const repoColor = await repoLegend
 		.locator(`[data-scope-id="${repository.id}"] .legend-dot`)
 		.evaluate((element) => getComputedStyle(element).backgroundColor);
@@ -474,9 +517,51 @@ test('ADO-003/004/005/008/010, UX-005/OPS-007: populated tabs, safe text and dis
 	).toBeVisible();
 	await expect(
 		page.getByRole('link', { name: 'PR13 Other repository PR', exact: true }),
+	).toHaveCount(0);
+	const repoChips = page.getByRole('group', { name: 'Filter pull requests by repository' });
+	const secondRepoChip = repoChips.getByRole('button', {
+		name: `${secondRepository.name}, 1 item`,
+		exact: true,
+	});
+	await secondRepoChip.click();
+	await expect(
+		page.getByRole('link', { name: 'PR13 Other repository PR', exact: true }),
 	).toBeVisible();
 	await workTab.click();
+	await expect(
+		chips.getByRole('button', { name: 'Assignment unknown, 1 item', exact: true }),
+	).toHaveAttribute('aria-pressed', 'true');
+	await chips.getByRole('button').first().click();
 	await expect(page.getByRole('link', { name: `#7 ${title}`, exact: true })).toBeVisible();
+	await ownTab.click();
+	await expect(secondRepoChip).toHaveAttribute('aria-pressed', 'true');
+	await reviewTab.click();
+	await expect(repoChips.getByRole('button').first()).toHaveAttribute('aria-pressed', 'true');
+	await repoChips.getByRole('button').nth(1).click();
+	await expect(
+		page.getByText('No matching items in the selected scope.', { exact: true }),
+	).toBeVisible();
+	await expect(reviewTab.locator('.tab-count')).toHaveText('1 item');
+	await workTab.click();
+	for (const width of [375, 1440]) {
+		await page.setViewportSize({ width, height: 900 });
+		await chips.getByRole('button').nth(1).click();
+		await expect(beta).toHaveAttribute('aria-pressed', 'true');
+		await expect(beta).toHaveCSS(
+			'border-top-color',
+			await beta
+				.locator('.legend-dot')
+				.evaluate((element) => getComputedStyle(element).backgroundColor),
+		);
+		const chipSizes = await chips.getByRole('button').evaluateAll((elements) =>
+			elements.map((element) => ({
+				left: element.getBoundingClientRect().left,
+				right: element.getBoundingClientRect().right,
+			})),
+		);
+		expect(chipSizes.every((size) => size.left >= 0 && size.right <= width)).toBe(true);
+		expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(width);
+	}
 	await expect(page.getByRole('textbox', { name: 'New todo' })).toBeEnabled();
 	mapping.error = 'Synthetic team permission denial.';
 	mapping.stale = true;
@@ -489,9 +574,37 @@ test('ADO-003/004/005/008/010, UX-005/OPS-007: populated tabs, safe text and dis
 	);
 	await expect(workTab.locator('.tab-count')).toHaveText('4 items');
 	await ownTab.click();
+	await expect(repoChips.getByRole('button').first()).toHaveAttribute('aria-pressed', 'true');
+	await secondRepoChip.click();
 	await expect(
 		page.getByRole('link', { name: 'PR13 Other repository PR', exact: true }),
 	).toBeVisible();
+	await workTab.click();
+	await chips.getByRole('button', { name: 'Assignment unknown, 2 items', exact: true }).click();
+	const beforeRefresh = stateReads;
+	await page.evaluate(() => window.dispatchEvent(new Event('focus')));
+	await expect.poll(() => stateReads).toBe(beforeRefresh + 1);
+	await expect(
+		chips.getByRole('button', { name: 'Assignment unknown, 2 items', exact: true }),
+	).toHaveAttribute('aria-pressed', 'true');
+	for (const scope of state.ado.snapshots) {
+		if (scope.dataset === 'work') {
+			for (const row of scope.data) {
+				if ('areaPath' in row) {
+					row.areaPath = 'Utilities\\Feature';
+				}
+			}
+		}
+	}
+	mapping.error = null;
+	mapping.stale = false;
+	await page.evaluate(() => window.dispatchEvent(new Event('focus')));
+	await expect(chips.getByRole('button', { name: /^Assignment unknown/ })).toHaveCount(0);
+	await expect(chips.getByRole('button').first()).toHaveAttribute('aria-pressed', 'true');
+	await expect(page.locator('.work-row')).toHaveCount(4);
+	await expect(workTab).toHaveAttribute('aria-selected', 'true');
+	await expect(workTab.locator('.tab-count')).toHaveText('4 items');
+	expect(mutations).toEqual([]);
 });
 
 for (const width of [375, 768, 1440]) {

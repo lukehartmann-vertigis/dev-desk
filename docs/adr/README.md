@@ -15,7 +15,9 @@
 | [0009](0009-ado-scope-and-review-visibility.md) | Explicit repository scope and personal/group review visibility | Accepted |
 | [0010](0010-local-first-failure-isolation.md) | Isolate integration configuration failures from local operation | Accepted |
 | [0011](0011-integrated-delivery-and-verification.md) | Lift the up-front G0 blocker and deliver with integrated verification | Accepted by explicit user instruction |
-| [0012](0012-informational-legends-and-team-scopes.md) | Informational legends and team-board area-scope annotations without display filters | Accepted by explicit user instruction |
+| [0012](0012-informational-legends-and-team-scopes.md) | Informational legends and team-board area-scope annotations without display filters | Accepted; local-display prohibition superseded by [0014](0014-local-scope-chips-and-tool-outcomes.md) |
+| [0013](0013-safe-markdown-and-todo-drag-handles.md) | Safe assistant Markdown and accessible persistent todo drag handles | Accepted for the requested frontend enhancement |
+| [0014](0014-local-scope-chips-and-tool-outcomes.md) | Single-select in-tab scope chips and compact literal tool disclosures | Accepted by explicit user instruction |
 
 ## Status policy
 

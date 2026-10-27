@@ -80,8 +80,14 @@ The user MUST be able to reorder open todos, with persistent ordering.
 
 Acceptance:
 - Both pointer and keyboard controls can move an open todo.
+- An explicit drag handle supports mouse and touch; Space picks up/drops a
+  focused handle, arrow keys move it, and Escape cancels. Up/Down buttons remain
+  available without dragging.
+- The handle is compact and borderless; dragged rows move only vertically.
 - Reload and restart retain the order.
 - Reordering the open list does not reorder completed records.
+- Dragging uses the same revision-checked mutation as buttons; pending writes
+  disable controls, and a failed write retains the committed order with an error.
 
 ## TODO-009 — External reference
 

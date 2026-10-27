@@ -1,29 +1,10 @@
 'use client';
 import { useEffect, useId, useRef, type FormEvent } from 'react';
-import { referenceUrl, type Approval, type DashboardState } from '../../lib/contracts';
+import { type Approval, type DashboardState } from '../../lib/contracts';
 import { formatTimestamp } from '../../lib/format';
+import { MessageContent } from './message-content';
+import { ToolOutcome } from './tool-outcome';
 
-function SafeText({ text, state }: { text: string; state: DashboardState }) {
-	const allowed = new Set([
-		...state.todos.items.flatMap((todo) =>
-			todo.reference ? [referenceUrl(todo.reference)] : [],
-		),
-		...state.ado.snapshots.flatMap((scope) => scope.data.map((row) => row.url)),
-	]);
-	return (
-		<>
-			{text.split(/(https:\/\/dev\.azure\.com\/[^\s<>"'`]+)/g).map((part, index) =>
-				allowed.has(part) ? (
-					<a key={index} href={part} target="_blank" rel="noopener noreferrer">
-						{part}
-					</a>
-				) : (
-					part
-				),
-			)}
-		</>
-	);
-}
 /** Controlled transcript/composer state; callbacks own provider I/O and confirmed deletion. */
 export type ChatProps = {
 	state: DashboardState;
@@ -96,39 +77,33 @@ export function ChatPanel({
 						</p>
 					</div>
 				)}
-				{state.chat.map((message) => (
-					<article key={message.id} className={`bubble ${message.role}`}>
-						<div className="mb-2 flex flex-wrap justify-between gap-2 text-[10px] font-bold tracking-wider uppercase">
-							<span>{message.role === 'tool' ? 'Tool outcome' : message.role}</span>
-							<span>{message.status}</span>
-						</div>
-						{message.role === 'tool' ? (
-							<details>
-								<summary>Show committed result / error</summary>
-								<pre className="mt-2 text-xs break-all whitespace-pre-wrap">
-									{message.content}
-								</pre>
-							</details>
-						) : (
-							<div className="break-words whitespace-pre-wrap">
-								<SafeText
-									text={
-										message.status === 'running' && message.role === 'assistant'
-											? streamed || message.content || 'Thinking...'
-											: message.content
-									}
-									state={state}
-								/>
+				{state.chat.map((message) =>
+					message.role === 'tool' ? (
+						<ToolOutcome key={message.id} message={message} />
+					) : (
+						<article key={message.id} className={`bubble ${message.role}`}>
+							<div className="mb-2 flex flex-wrap justify-between gap-2 text-[10px] font-bold tracking-wider uppercase">
+								<span>{message.role}</span>
+								<span>{message.status}</span>
 							</div>
-						)}
-						<time
-							className="mt-2 block text-[10px] text-[var(--muted)]"
-							dateTime={message.createdAt}
-						>
-							{formatTimestamp(message.createdAt)}
-						</time>
-					</article>
-				))}
+							<MessageContent
+								text={
+									message.status === 'running' && message.role === 'assistant'
+										? streamed || message.content || 'Thinking...'
+										: message.content
+								}
+								role={message.role}
+								state={state}
+							/>
+							<time
+								className="mt-2 block text-[10px] text-[var(--muted)]"
+								dateTime={message.createdAt}
+							>
+								{formatTimestamp(message.createdAt)}
+							</time>
+						</article>
+					),
+				)}
 				{state.approvals.map((item) => (
 					<div className="notice" key={item.id}>
 						<strong>Deletion approval needed</strong>

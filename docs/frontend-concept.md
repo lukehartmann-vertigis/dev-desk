@@ -95,6 +95,30 @@ Framer Motion provides restrained state transitions. Use no looping decoration
 or animation delays before acknowledging an action. Reduced-motion preferences
 take precedence over visual imitation.
 
+Open todos expose a compact, borderless 33px drag handle (75% of the original
+44px size), with a proportionally scaled icon and visible keyboard focus.
+Dragging is restricted to the vertical axis, even with diagonal pointer movement.
+Pointer/touch dragging previews placement without making the whole row draggable;
+links, text selection and ordinary row
+controls remain independent. Handle keyboard support uses Space, arrows, and
+Escape, alongside the existing Up/Down buttons. The shared server mutation
+commits order; cancelled/failed dragging does not claim successful persistence.
+Completed todos remain ordered by completion time and have no sorting handle.
+
+Assistant messages use CommonMark/GFM for saved and partial streamed output:
+headings, emphasis, lists, inert task checkboxes, quotes, inline/fenced code and
+tables. Code/table overflow stays inside the message. User messages and tool
+outcomes remain literal. Raw HTML is skipped and image descriptions render
+without fetching images. Only exact known HTTPS ADO source links from todo
+references or cached rows become clickable; Markdown does not broaden scope.
+
+Tool outcomes use a native collapsed disclosure, not a full chat bubble. Its
+32px one-line summary names the action and reports failure, completion, pending
+approval, or explicitly unstructured content. Complete transcript status alone
+does not imply a successful tool outcome. Expand by pointer or Enter/Space for
+the entire literal payload and local timestamp. Long content wraps/scrolls
+inside the chat without executing HTML or Markdown.
+
 ## 4. Demo behavior versus production rules
 
 | Preview behavior | Production interpretation |
@@ -106,7 +130,7 @@ take precedence over visual imitation.
 | Double-click and native prompt for editing | Accessible edit action usable by keyboard; dialog/inline details remain a UX implementation choice |
 | Demo title validation | Trimmed title, 1–500 characters, explicit errors |
 | Demo has no actual external todo associations | Production supports one optional work-item or PR reference per todo |
-| Repository toggles hide both PRs and work items | Replace toggles with informational legends; never hide rows |
+| Repository toggles hide both PRs and work items | Keep sidebar legends informational; local in-tab chips group work by team and PRs by repository without restricting synchronized data |
 | Repository color is the only context cue | Include textual project/repository context; color is supplementary |
 | Fake Refresh success after a timeout | Real queued/running/success/failure state from the sync coordinator |
 | Keyword-driven canned assistant replies | Copilot SDK, automatic intent classification, bounded tools, durable transcript |
@@ -119,7 +143,7 @@ The date in the header, if retained, is informational only. Whether to display a
 date and the final product copy remain detailed UX choices; no business behavior
 may depend on that date.
 
-## 5. Azure DevOps context and informational legends
+## 5. Azure DevOps context, legends, and local grouping
 
 Conceptual hierarchy:
 
@@ -159,6 +183,26 @@ matching uses case-insensitive area paths and each rule's `includeChildren`, not
 repository names. It is not a reproduction of board columns, visible work-item
 types, or iteration filters. Unknown/unmatched mappings and stale/failed team
 metadata have distinct text; last-good scopes survive restart and failed refresh.
+
+The later [ADR-0014](adr/0014-local-scope-chips-and-tool-outcomes.md) adds colored
+chips inside the counted tab body, superseding only the earlier prohibition on
+local display grouping:
+- Exactly one chip is active; use stable legend order and initially select the
+  first team/repository, including zero-count known scopes. There is no All chip.
+- Retain the selected identity independently per tab during cache updates.
+  Display the first available group if it disappears; reload resets the choices.
+- Work items appear in every matching team. Append nonempty "No team" and
+  "Assignment unknown" groups; missing area metadata or unresolved/stale
+  nonmatches are unknown. Retain stale last-good positive matches with warnings.
+  Unexpected repository metadata has its own unknown fallback.
+- Count rows per chip; overlapping team counts can exceed the dataset total.
+  Tab counts still describe all cached rows. Selected empty groups have an
+  explicit empty state; errors and freshness notices are not filtered.
+- Reuse sidebar/row colors for chip dots, borders, and active fill. Keep readable
+  text and keyboard focus; color is supplementary, not the selection contract.
+- Buttons expose names/counts and `aria-pressed`; no nested tab widget is needed.
+  Selection does not trigger HTTP reads, writes, or provider synchronization,
+  and does not change todo references or chat's complete cached context.
 
 Enter sends a chat message; Shift+Enter inserts a newline. Todo input retains
 native Enter submission. Both guard IME composition and pending submissions;

@@ -52,7 +52,8 @@ Acceptance:
   and each team's `System.AreaPath` field-values with `includeChildren`.
   Match paths case-insensitively at path boundaries and display every matching
   team-board scope. This describes area scope, not exact board/type/column or
-  iteration visibility. An unmatched work item remains visible.
+  iteration visibility. Unmatched/unknown work items remain available through
+  separate local grouping chips; no assigned rows are removed from the cache.
 - Persist team scopes independently of work-item snapshots. Permission, paging,
   and metadata failures retain last-good mappings, mark them stale, and leave
   todo, work-item, and PR functionality available. Missing area metadata from
@@ -78,7 +79,9 @@ Acceptance:
   as above. An unknown group outcome or incomplete membership cannot establish
   that the request is satisfied.
 - Review requests and own PRs use the configured repository allowlist. Repository
-  legends and matching row markers are informational, not display filters.
+  sidebar legends and matching row markers remain informational. In-tab chips
+  filter the local presentation by repository without restricting sync, changing
+  dataset totals, or hiding data from todo-reference selection and chat tools.
 
 ## ADO-005 — Own pull requests
 

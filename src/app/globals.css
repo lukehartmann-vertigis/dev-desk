@@ -163,6 +163,35 @@ button.primary:hover:not(:disabled) {
 	border-color: var(--line);
 	overflow-wrap: anywhere;
 }
+.todo-row[data-dragging] {
+	position: relative;
+	z-index: 1;
+	background: #222d3e;
+	box-shadow: 0 0 0 1px var(--accent);
+}
+.drag-handle {
+	display: grid;
+	place-items: center;
+	flex: none;
+	width: 33px;
+	height: 33px;
+	padding: 0;
+	border: 0;
+	background: transparent;
+	color: var(--muted);
+	cursor: grab;
+	touch-action: none;
+}
+.drag-handle:hover:not(:disabled) {
+	background: transparent;
+	color: var(--text);
+}
+.drag-handle:active {
+	cursor: grabbing;
+}
+.drag-handle:disabled {
+	cursor: not-allowed;
+}
 .todo-actions {
 	@apply flex flex-wrap gap-1;
 }
@@ -221,6 +250,35 @@ button.primary:hover:not(:disabled) {
 }
 .devops-panel-content {
 	padding-top: 16px;
+}
+.scope-chips {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px;
+	padding: 0 20px 16px;
+}
+.scope-chip {
+	display: inline-flex;
+	align-items: center;
+	gap: 8px;
+	min-width: 0;
+	max-width: 100%;
+	min-height: 32px;
+	padding: 5px 10px;
+	border-radius: 999px;
+	background: transparent;
+	text-align: left;
+}
+.scope-chip:hover {
+	background: color-mix(in srgb, currentColor 8%, transparent);
+}
+.scope-chip[aria-pressed='true'] {
+	font-weight: 700;
+}
+.scope-count {
+	flex: none;
+	font-size: 10px;
+	font-weight: 700;
 }
 .work-row {
 	@apply flex gap-3 border-t px-5 py-3 text-sm;
@@ -282,8 +340,142 @@ button.primary:hover:not(:disabled) {
 .bubble.assistant {
 	margin-right: 12px;
 }
-.bubble.tool {
-	background: #132a28;
+.tool-outcome {
+	margin-bottom: 6px;
+	font-size: 11px;
+	color: var(--muted);
+}
+.tool-outcome > summary {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	min-height: 32px;
+	padding: 6px 0;
+	line-height: 20px;
+	list-style: none;
+}
+.tool-outcome > summary::-webkit-details-marker {
+	display: none;
+}
+.tool-chevron {
+	flex: none;
+}
+.tool-outcome[open] .tool-chevron {
+	transform: rotate(90deg);
+}
+.tool-outcome-name {
+	flex: 1;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+.tool-outcome-status {
+	flex: none;
+	max-width: 60%;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+.tool-outcome[data-failed] .tool-outcome-status {
+	color: #ffaaaa;
+}
+.tool-outcome-content {
+	padding: 8px;
+	border-left: 2px solid var(--line);
+}
+.tool-outcome-content pre {
+	max-height: 40dvh;
+	overflow: auto;
+	margin-top: 6px;
+	white-space: pre-wrap;
+	overflow-wrap: anywhere;
+}
+.message-markdown {
+	min-width: 0;
+	overflow-wrap: anywhere;
+}
+.message-markdown > :first-child {
+	margin-top: 0;
+}
+.message-markdown > :last-child {
+	margin-bottom: 0;
+}
+.message-markdown p,
+.message-markdown ul,
+.message-markdown ol,
+.message-markdown pre,
+.message-markdown blockquote,
+.message-markdown .markdown-table {
+	margin: 0.75em 0;
+}
+.message-markdown p {
+	color: inherit;
+}
+.message-markdown :is(h1, h2, h3, h4, h5, h6) {
+	margin: 1em 0 0.5em;
+	font-size: 1em;
+	font-weight: 700;
+}
+.message-markdown ul,
+.message-markdown ol {
+	padding-left: 1.5em;
+}
+.message-markdown ul {
+	list-style: disc;
+}
+.message-markdown ol {
+	list-style: decimal;
+}
+.message-markdown li + li {
+	margin-top: 0.25em;
+}
+.message-markdown li:has(> input[type='checkbox']) {
+	list-style: none;
+}
+.message-markdown input[type='checkbox'] {
+	margin-right: 0.5em;
+	cursor: default;
+}
+.message-markdown code {
+	border-radius: 4px;
+	padding: 0.1em 0.3em;
+	background: #0d121a;
+	font-family: ui-monospace, monospace;
+}
+.message-markdown pre {
+	max-width: 100%;
+	overflow-x: auto;
+	padding: 0.75em;
+	border-radius: 6px;
+	background: #0d121a;
+	white-space: pre;
+	overflow-wrap: normal;
+}
+.message-markdown pre code {
+	padding: 0;
+	background: transparent;
+}
+.message-markdown blockquote {
+	padding-left: 0.75em;
+	border-left: 2px solid var(--accent);
+	color: var(--muted);
+}
+.message-markdown hr {
+	margin: 1em 0;
+	border-color: var(--line);
+}
+.markdown-table {
+	max-width: 100%;
+	overflow-x: auto;
+}
+.markdown-table table {
+	border-collapse: collapse;
+}
+.markdown-table :is(th, td) {
+	padding: 0.5em 0.75em;
+	border: 1px solid var(--line);
+	text-align: left;
 }
 .modal {
 	margin: auto;

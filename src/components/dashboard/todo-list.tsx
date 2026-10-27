@@ -1,6 +1,24 @@
 'use client';
-import { useState, type FormEvent, type RefObject } from 'react';
+import { useId, type FormEvent, type RefCallback, type RefObject } from 'react';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
+import {
+	closestCenter,
+	DndContext,
+	KeyboardSensor,
+	PointerSensor,
+	pointerWithin,
+	useSensor,
+	useSensors,
+	type CollisionDetection,
+	type Modifier,
+} from '@dnd-kit/core';
+import {
+	SortableContext,
+	sortableKeyboardCoordinates,
+	useSortable,
+	verticalListSortingStrategy,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 import {
 	referenceUrl,
 	type TodoList,
@@ -24,56 +42,115 @@ interface TodoListProps {
 	checkReference: (reference: Reference) => Promise<void>;
 	referenceStatus: Record<string, string>;
 }
-/** Presents persistent todos and ordering controls; only successful controller writes clear input. */
-export function TodoListCard({
-	list,
-	title,
-	setTitle,
+type TodoRowProps = Pick<
+	TodoListProps,
+	'busy' | 'mutate' | 'edit' | 'setDeleting' | 'reorder' | 'checkReference' | 'referenceStatus'
+> & {
+	todo: Todo;
+	index: number;
+	openCount: number;
+	reduceMotion: boolean;
+};
+type Sorting = Pick<
+	ReturnType<typeof useSortable>,
+	'attributes' | 'listeners' | 'transform' | 'transition' | 'isDragging' | 'isSorting'
+>;
+const todoCollision: CollisionDetection = (args) =>
+	args.pointerCoordinates ? pointerWithin(args) : closestCenter(args);
+const restrictToVerticalAxis: Modifier = ({ transform }) => ({ ...transform, x: 0 });
+
+function SortableTodoRow(props: TodoRowProps) {
+	const {
+		setNodeRef,
+		setActivatorNodeRef,
+		attributes,
+		listeners,
+		transform,
+		transition,
+		isDragging,
+		isSorting,
+	} = useSortable({ id: props.todo.id, disabled: props.busy });
+	return (
+		<TodoRow
+			{...props}
+			rowRef={setNodeRef}
+			handleRef={setActivatorNodeRef}
+			sorting={{ attributes, listeners, transform, transition, isDragging, isSorting }}
+		/>
+	);
+}
+
+function TodoRow({
+	todo,
+	index,
+	openCount,
+	reduceMotion,
 	busy,
-	input,
-	create,
 	mutate,
 	edit,
 	setDeleting,
 	reorder,
 	checkReference,
 	referenceStatus,
-}: TodoListProps) {
-	const [dragId, setDragId] = useState<string | null>(null);
-	const reduceMotion = useReducedMotion();
-	const open = list.items.filter((todo) => !todo.completedAt);
-	const completed = list.items
-		.filter((todo) => todo.completedAt)
-		.sort((a, b) => (b.completedAt ?? '').localeCompare(a.completedAt ?? ''));
-	const renderTodo = (todo: Todo, index: number) => (
+	sorting,
+	rowRef,
+	handleRef,
+}: TodoRowProps & {
+	sorting?: Sorting;
+	rowRef?: RefCallback<HTMLLIElement>;
+	handleRef?: RefCallback<HTMLButtonElement>;
+}) {
+	const disabled = busy || Boolean(sorting?.isSorting);
+	return (
 		<motion.li
-			key={todo.id}
+			ref={rowRef}
+			style={
+				sorting
+					? {
+							transform: CSS.Transform.toString(sorting.transform),
+							transition: reduceMotion ? 'none' : sorting.transition,
+						}
+					: {}
+			}
 			initial={false}
 			animate={{ opacity: 1 }}
 			exit={{ opacity: 0 }}
 			transition={{ duration: reduceMotion ? 0 : 0.12 }}
 			className="todo-row"
-			draggable={!todo.completedAt && !busy}
-			onDragStart={() => setDragId(todo.id)}
-			onDragEnd={() => setDragId(null)}
-			onDragOver={(event) => {
-				if (!todo.completedAt) {
-					event.preventDefault();
-				}
-			}}
-			onDrop={(event) => {
-				event.preventDefault();
-				if (dragId) {
-					void reorder(dragId, index);
-				}
-				setDragId(null);
-			}}
+			data-dragging={sorting?.isDragging || undefined}
 		>
+			{sorting && (
+				<button
+					ref={handleRef}
+					{...sorting.attributes}
+					{...sorting.listeners}
+					type="button"
+					className="drag-handle"
+					aria-label={`Reorder ${todo.title}`}
+					title="Drag to reorder"
+					disabled={busy}
+				>
+					<svg
+						width="12"
+						height="18"
+						viewBox="0 0 16 24"
+						fill="currentColor"
+						aria-hidden="true"
+					>
+						<circle cx="5" cy="5" r="1.5" />
+						<circle cx="11" cy="5" r="1.5" />
+						<circle cx="5" cy="12" r="1.5" />
+						<circle cx="11" cy="12" r="1.5" />
+						<circle cx="5" cy="19" r="1.5" />
+						<circle cx="11" cy="19" r="1.5" />
+					</svg>
+				</button>
+			)}
 			<input
 				type="checkbox"
 				aria-label={`${todo.completedAt ? 'Reopen' : 'Complete'} ${todo.title}`}
 				checked={Boolean(todo.completedAt)}
-				disabled={busy}
+				disabled={disabled}
 				onChange={() =>
 					void mutate({
 						kind: 'complete',
@@ -105,6 +182,7 @@ export function TodoListCard({
 							type="button"
 							className="ml-2 px-2 py-1 text-[10px]"
 							disabled={
+								disabled ||
 								referenceStatus[JSON.stringify(todo.reference)] === 'Checking...'
 							}
 							onClick={() => {
@@ -132,7 +210,7 @@ export function TodoListCard({
 						<button
 							title="Move up"
 							aria-label={`Move ${todo.title} up`}
-							disabled={busy || index === 0}
+							disabled={disabled || index === 0}
 							onClick={() => void reorder(todo.id, index - 1)}
 						>
 							Up
@@ -140,7 +218,7 @@ export function TodoListCard({
 						<button
 							title="Move down"
 							aria-label={`Move ${todo.title} down`}
-							disabled={busy || index === open.length - 1}
+							disabled={disabled || index === openCount - 1}
 							onClick={() => void reorder(todo.id, index + 1)}
 						>
 							Down
@@ -148,14 +226,14 @@ export function TodoListCard({
 					</>
 				)}
 				<button
-					disabled={busy}
+					disabled={disabled}
 					onClick={() => edit(todo)}
 					aria-label={`Edit ${todo.title}`}
 				>
 					Edit
 				</button>
 				<button
-					disabled={busy}
+					disabled={disabled}
 					className="danger"
 					onClick={() => setDeleting(todo)}
 					aria-label={`Delete ${todo.title}`}
@@ -165,6 +243,44 @@ export function TodoListCard({
 			</div>
 		</motion.li>
 	);
+}
+
+/** Persistent todo controls with handle-only vertical sorting, keyboard access and reduced motion. */
+export function TodoListCard({
+	list,
+	title,
+	setTitle,
+	busy,
+	input,
+	create,
+	mutate,
+	edit,
+	setDeleting,
+	reorder,
+	checkReference,
+	referenceStatus,
+}: TodoListProps) {
+	const id = useId();
+	const reduceMotion = Boolean(useReducedMotion());
+	const sensors = useSensors(
+		useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
+		useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+	);
+	const open = list.items.filter((todo) => !todo.completedAt);
+	const completed = list.items
+		.filter((todo) => todo.completedAt)
+		.sort((a, b) => (b.completedAt ?? '').localeCompare(a.completedAt ?? ''));
+	const rowProps = {
+		busy,
+		mutate,
+		edit,
+		setDeleting,
+		reorder,
+		checkReference,
+		referenceStatus,
+		reduceMotion,
+		openCount: open.length,
+	};
 	return (
 		<section className="card" aria-labelledby="todos-title">
 			<header className="card-header">
@@ -196,18 +312,73 @@ export function TodoListCard({
 					Add
 				</button>
 			</form>
-			<ul>
-				<AnimatePresence initial={false}>{open.map(renderTodo)}</AnimatePresence>
-			</ul>
+			<DndContext
+				id={id}
+				sensors={sensors}
+				modifiers={[restrictToVerticalAxis]}
+				collisionDetection={todoCollision}
+				accessibility={{
+					screenReaderInstructions: {
+						draggable:
+							'Press Space to pick up a todo. Use arrow keys to move it, Space to drop, or Escape to cancel.',
+					},
+					announcements: {
+						onDragStart: ({ active }) =>
+							`Picked up ${open.find((todo) => todo.id === active.id)?.title ?? 'removed todo'}.`,
+						onDragOver: ({ over }) =>
+							over
+								? `Over position ${open.findIndex((todo) => todo.id === over.id) + 1} of ${open.length}.`
+								: 'Outside the open todo list.',
+						onDragEnd: ({ active, over }) =>
+							over && active.id !== over.id && !busy
+								? 'Dropped. Saving the new order.'
+								: 'Order unchanged.',
+						onDragCancel: () => 'Reordering cancelled. Order unchanged.',
+					},
+				}}
+				onDragEnd={({ active, over }) => {
+					if (busy || !over || active.id === over.id) {
+						return;
+					}
+					const source = open.find((todo) => todo.id === active.id);
+					const target = open.findIndex((todo) => todo.id === over.id);
+					if (source && target >= 0) {
+						void reorder(source.id, target);
+					}
+				}}
+			>
+				<SortableContext
+					items={open.map((todo) => todo.id)}
+					strategy={verticalListSortingStrategy}
+				>
+					<ul>
+						<AnimatePresence initial={false}>
+							{open.map((todo, index) => (
+								<SortableTodoRow
+									key={todo.id}
+									{...rowProps}
+									todo={todo}
+									index={index}
+								/>
+							))}
+						</AnimatePresence>
+					</ul>
+				</SortableContext>
+			</DndContext>
 			{!open.length && (
 				<p className="empty">Nothing on your list. Add your first todo above.</p>
 			)}
 			<details className="completed">
 				<summary>Completed ({completed.length})</summary>
-				<ul>{completed.map(renderTodo)}</ul>
+				<ul>
+					{completed.map((todo, index) => (
+						<TodoRow key={todo.id} {...rowProps} todo={todo} index={index} />
+					))}
+				</ul>
 			</details>
 			<footer className="card-footer">
-				Saved locally. No rollover, no automatic expiry.
+				Drag the handle to reorder, or use Up/Down. Saved locally. No rollover, no automatic
+				expiry.
 			</footer>
 		</section>
 	);

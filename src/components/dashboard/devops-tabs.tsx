@@ -1,7 +1,6 @@
 'use client';
 import { useId, useRef, useState } from 'react';
 import {
-	matchesBoardArea,
 	type BoardScope,
 	type DashboardState,
 	type WorkItem,
@@ -9,6 +8,7 @@ import {
 } from '../../lib/contracts';
 import { formatTimestamp } from '../../lib/format';
 import { ScopeLabel, type LegendEntry } from './scope-legend';
+import { groupDevOpsRows } from './devops-groups';
 const devOpsTabs = [
 	{ dataset: 'work', label: 'Assigned work items' },
 	{ dataset: 'reviews', label: 'Review requests' },
@@ -35,9 +35,10 @@ function tabIndexForKey(key: string, index: number): number | null {
 			return null;
 	}
 }
-/** Switches cached ADO views locally with counted, keyboard-accessible tabs and retained selection. */
+/** Local counted tabs and single-select scope chips; each tab retains its own selected identity. */
 export function DevOpsTabs({ state, repositories, boards }: DevOpsProps) {
 	const [active, setActive] = useState<DevOpsDataset>('work');
+	const [selections, setSelections] = useState<Partial<Record<DevOpsDataset, string>>>({});
 	const id = useId();
 	const buttons = useRef(new Map<DevOpsDataset, HTMLButtonElement>());
 	return (
@@ -113,6 +114,10 @@ export function DevOpsTabs({ state, repositories, boards }: DevOpsProps) {
 							state={state}
 							repositories={repositories}
 							boards={boards}
+							selection={selections[dataset]}
+							select={(scopeId) =>
+								setSelections((previous) => ({ ...previous, [dataset]: scopeId }))
+							}
 						/>
 					)}
 				</div>
@@ -126,17 +131,68 @@ function DevOpsPanel({
 	state,
 	repositories,
 	boards,
-}: DevOpsProps & { dataset: DevOpsDataset }) {
+	selection,
+	select,
+}: DevOpsProps & {
+	dataset: DevOpsDataset;
+	selection: string | undefined;
+	select: (scopeId: string) => void;
+}) {
 	const scopes = state.ado.snapshots.filter((scope) => scope.dataset === dataset);
 	const rows = scopes.flatMap<WorkItem | PullRequest>((scope) => scope.data);
+	const groups = groupDevOpsRows({
+		dataset,
+		rows,
+		boardScopes: state.ado.boardScopes,
+		repositories,
+		boards,
+	});
+	const selected = groups.find((group) => group.id === selection) ?? groups[0];
+	const visible = selected?.rows ?? [];
 	let emptyMessage = 'No matching items in the successfully synchronized scopes.';
 	if (state.ado.state !== 'ready') {
 		emptyMessage = 'Integration is not available.';
 	} else if (!scopes.length || scopes.every((scope) => !scope.successAt)) {
 		emptyMessage = 'Not synchronized yet.';
+	} else if (rows.length) {
+		emptyMessage = 'No matching items in the selected scope.';
 	}
 	return (
 		<div className="devops-panel-content">
+			{groups.length > 0 && (
+				<div
+					className="scope-chips"
+					role="group"
+					aria-label={
+						dataset === 'work'
+							? 'Filter work items by team'
+							: 'Filter pull requests by repository'
+					}
+				>
+					{groups.map((group) => (
+						<button
+							key={group.id}
+							type="button"
+							className="scope-chip"
+							aria-pressed={selected?.id === group.id}
+							aria-label={`${group.label}, ${group.rows.length} ${group.rows.length === 1 ? 'item' : 'items'}`}
+							style={{
+								borderColor: group.color,
+								backgroundColor:
+									selected?.id === group.id
+										? `color-mix(in srgb, ${group.color} 20%, transparent)`
+										: undefined,
+							}}
+							onClick={() => select(group.id)}
+						>
+							<ScopeLabel entry={group} />
+							<span className="scope-count" aria-hidden="true">
+								{group.rows.length}
+							</span>
+						</button>
+					))}
+				</div>
+			)}
 			{scopes.some((scope) => scope.stale) && (
 				<p className="px-5 pb-3 text-xs text-amber-200">
 					Stale or incomplete: showing last successfully saved data where available.
@@ -158,23 +214,8 @@ function DevOpsPanel({
 						</p>
 					</div>
 				))}
-			{!rows.length && <p className="empty">{emptyMessage}</p>}
-			{rows.map((row) => {
-				const areaPath = 'areaPath' in row ? row.areaPath : null;
-				const boardScope = state.ado.boardScopes.find(
-					(scope) => scope.project.toLowerCase() === row.project.toLowerCase(),
-				);
-				const boardIds = !areaPath
-					? []
-					: (boardScope?.boards
-							.filter((board) =>
-								board.areas.some((area) => matchesBoardArea(areaPath, area)),
-							)
-							.map((board) => board.id) ?? []);
-				const markers =
-					'repositoryId' in row
-						? repositories.filter((entry) => entry.id === row.repositoryId)
-						: boards.filter((entry) => boardIds.includes(entry.id));
+			{!visible.length && <p className="empty">{emptyMessage}</p>}
+			{visible.map(({ row, boardScope, markers }) => {
 				return (
 					<article
 						className="work-row"

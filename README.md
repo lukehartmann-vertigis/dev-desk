@@ -78,7 +78,15 @@ Optional settings and scope UUIDs are in [.env.example](.env.example).
 ## Use
 
 - Add a title, press Enter, and manage todos with Edit, Complete/Reopen, and
-  confirmed deletion. Drag open rows or use their Up/Down buttons to reorder.
+  confirmed deletion. Drag an open todo's grip with mouse/touch to reorder.
+  Keyboard: focus the grip, Space to pick up/drop, arrows to move, Escape to
+  cancel. Up/Down buttons are also available. Ordering persists after reload.
+- Assistant replies render Markdown, including code blocks, lists and tables,
+  while streaming and after reload. Raw HTML and remote images are disabled;
+  only known ADO source links are clickable. User/tool text remains literal.
+- Tool outcomes start as one compact line with an action and outcome state.
+  Expand by click or Enter/Space for the complete literal payload and timestamp.
+  Failed outcomes and pending deletion approvals are labelled, not called success.
 - Completed items remain in the initially collapsed section indefinitely.
 - Edit a todo to attach one selected work-item or PR URL. Unverified or unavailable
   references do not prevent ordinary todo operations.
@@ -86,9 +94,15 @@ Optional settings and scope UUIDs are in [.env.example](.env.example).
   Count bubbles include all cached items, even zero; stale data is marked.
   Use Left/Right or Home/End while a tab is focused to switch views.
 - The sidebar legends identify PR repositories and your ADO team-board scopes.
-  Matching row dots and colored edges supplement the text; there are no display
-  filters. Work items still include all your assigned work across the configured
-  projects, even without a matching board.
+  Matching row dots and colored edges supplement the text. Inside each tab,
+  colored chips select one team or repository; the first is initially active.
+  Each tab remembers its own selection until reload. Chip counts are per scope;
+  tab bubbles still count the complete cached dataset.
+- Work items matching multiple teams appear in every matching team chip.
+  Separate "No team" and "Assignment unknown" chips keep unmatched and unresolved
+  rows reachable. Last-good matches survive stale metadata; unmatched stale
+  mapping cannot establish "No team". Chips only filter the local view, never
+  the synchronized scope, todo references, or the agent's cached dashboard reads.
 - Work items use warm gold/red colors; PRs use a separate cool violet/teal/blue
   palette. Tab accents and counts preserve the distinction alongside the legends.
 - Team-board annotations use your teams' area paths and `includeChildren` rules,

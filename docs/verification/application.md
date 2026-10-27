@@ -170,6 +170,114 @@ was introduced. The [code conventions](../code-style.md) and
 [module ownership](../architecture.md#3-module-ownership) document the new layout
 and enforced readability rules.
 
+### Assistant Markdown and todo drag handles — 2026-10-27
+
+Assistant replies now render CommonMark/GFM, including streamed partial text,
+headings, lists, task lists, quotes, code, and tables. User/tool content stays
+literal. Raw HTML is skipped, images/embeds never load, and only exact known
+HTTPS ADO source URLs become links. Original Markdown remains the stored content.
+
+Open todos now have visible 44px drag handles using dnd-kit pointer/keyboard
+sensors. Mouse and touch gestures preview placement; Space/arrows/Escape and
+Up/Down buttons provide keyboard alternatives. Completed rows have no handle.
+Drops use the existing revision-checked, idempotent ordering mutation; pending
+writes disable controls and conflicts retain the committed order with an error.
+See [ADR-0013](../adr/0013-safe-markdown-and-todo-drag-handles.md).
+
+Verification:
+- Final production image passes type/lint/format checks, all **78 tests**, and
+  the Next.js build without initializing a build-time database.
+- All **27 Chromium cases** pass together against a fresh isolated, token-free
+  production instance. Six new cases verify safe GFM at 375/1440px, partial
+  streaming/reload, keyboard pickup/drop/cancel, narrow-screen touch dragging,
+  pending controls, conflict feedback, and successful retry.
+- The pointer workflow now uses actual mouse movement on the handle and checks
+  persisted order after reload. Keyboard tests await pickup/collision targets,
+  rather than dropping before asynchronous drag transitions complete.
+  Touch coverage dispatches Chromium touch events, not synthetic HTML drag events.
+- Markdown checks assert semantic formatting, code/table containment, literal
+  user/tool content, allowed/blocked links, no image/embed requests or script
+  execution, and no document overflow at desktop/mobile sizes.
+- The live app is updated and healthy; no active chat or pending deletion
+  approval was interrupted. Full todo/chat fingerprints are unchanged.
+  Live Chromium finds three handles for three open todos, the existing assistant
+  reply rendered as Markdown, and zero page errors. ADO cache scopes are fresh.
+- No live model prompt was sent and no user todo was reordered for acceptance.
+  Mutating browser tests ran only against the isolated database.
+
+### Compact handles and vertical-only dragging — 2026-10-27
+
+The user refined the initial drag-handle design: the button is now borderless
+and transparent, including on hover, with a 33px square target instead of 44px.
+Its icon is 12x18px instead of 16x24px: both are 75% of their original dimensions.
+Keyboard focus styling is retained. An application-local dnd-kit modifier
+preserves the drag transform except for fixing X translation to zero; no new
+dependency or persistence behavior is introduced.
+
+Verification:
+- Production type/lint/format checks, all 78 tests, and the Next.js build pass.
+- All **12 focused Chromium cases** pass on the isolated production image:
+  pointer/touch/keyboard ordering, cancellation, conflict recovery, responsive
+  layout, and independent scrolling.
+- Two new cases measure the 33px dimensions, zero-width borders, transparent
+  hover, smaller icon, and zero rendered X translation during diagonal dragging
+  at 375/1440px. They also verify positive Y movement and persisted drop order.
+  The touch case now moves diagonally and independently checks zero X translation.
+- The preceding 27-case full browser release remains recorded above; the suite
+  now defines 29 cases, with this change validated by the focused 12-case run.
+- The live app is updated and healthy. Live Chromium confirms all three open
+  todo handles have the new dimensions and borderless styling, with zero page
+  errors. Full todo/chat fingerprints are unchanged; no active chat or pending
+  deletion approval was interrupted.
+
+### In-tab scope chips and compact tool outcomes — 2026-10-27
+
+The three counted ADO tabs now provide single-select, colored team/repository
+chips inside their bodies. First-chip defaults and independent per-tab choices
+are local presentation; complete dataset counts, provider queries, todo-reference
+choices, and chat context remain unchanged. Overlapping teams retain every
+match. Nonempty no-team, unknown-assignment, and unknown-repository fallbacks
+keep unclassified rows reachable. Last-good positive team matches survive stale
+metadata, but stale nonmatches cannot assert no team.
+
+Tool messages are native collapsed disclosures with 32px one-line summaries.
+They identify the action and distinguish unsuccessful outcomes from complete
+transcript status, plus pending deletion approval and unstructured legacy text.
+Complete literal payloads and local timestamps remain expandable, not Markdown.
+See [ADR-0014](../adr/0014-local-scope-chips-and-tool-outcomes.md).
+
+Verification:
+- Production type/lint/format checks, all **98 tests across nine files**, and
+  the Next.js build pass without initializing a build-time database.
+- **20 new unit tests** cover overlapping/path-boundary/project matching, missing,
+  failed/stale/empty metadata, repository groups, zero counts, unknown fallbacks,
+  unexpected cached row kinds, successful/failed/pending-approval summaries,
+  literal HTML, prototype-like unknown tool names, and legacy raw content.
+- All **17 focused Chromium cases** pass together on the isolated, token-free
+  production instance. This is not a new full 31-case suite run.
+- Populated-tab acceptance checks default/single pressed chips, group counts,
+  overlapping teams, keyboard activation, separate unmatched/unknown access,
+  empty known repositories, per-tab choice retention, cache refresh, disappeared
+  selection fallback, full tab totals, unchanged reads/no mutations during chip
+  selection, consistent colors, and chip containment at 375/1440px.
+- Tool acceptance measures exactly 32px while collapsed at 375/1440px; Enter and
+  Space expand/collapse, full payload/timestamp stay available, long content
+  stays within chat, and errors remain visible despite complete message status.
+- Related safe Markdown/streaming, three-width tab keyboard/cache updates,
+  reduced-motion layout, independent scrolling, and Enter/IME chat guards pass.
+- The initial populated-tab run exposed a test locator assuming a project
+  prefix on repository labels. It was corrected to the existing repository-only
+  legend label; the populated test and coherent 17-case run then pass.
+- No live model prompt or user-data mutation is used for visual acceptance.
+- The final image is deployed and healthy with ADO/Copilot configured. Complete
+  todo/chat fingerprints match before/after replacement; the deployment guard
+  found no active chat, pending cleanup, or deletion approval to interrupt.
+- Read-only live Chromium checks pass at 375/1440px with zero page errors or
+  mutations. All three live tabs expose two chips, default first selection and
+  per-tab retention work, selected chip counts match rendered rows, and all five
+  existing tool outcomes are collapsed 32px lines with expandable literal details.
+  Both owned isolated acceptance containers are stopped.
+
 ## 1. Verified results
 
 Environment: Linux x86_64, Node.js 24.22.1/npm 11.19.1 in Docker, Next.js 16.4.3,
@@ -182,10 +290,10 @@ The root lockfile is authoritative; exact stack rationale is in the
 | Strict TypeScript | Pass for owned source, routes, tests, and UI |
 | ESLint | Pass, zero warnings |
 | Prettier | Pass for configured source/configuration files |
-| Vitest | 78 tests across seven files pass; 77 domain/fake-provider/HTTP/configuration cases plus one actual native-runtime case |
+| Vitest | 98 tests across nine files pass: server/domain/transport/configuration, local grouping/tool summaries, and one actual native-runtime case |
 | Production build | Pass in the actual Dockerfile; build-time database path remains absent |
 | Non-root image | Pass; server runs as `node`, SQLite migrations/writes and packaged SDK native process work |
-| Chromium | All 21 workflow/layout/keyboard/tab/count/legend/scroll cases pass as one suite on an isolated production instance |
+| Chromium | Latest 17-case focused scope/chat/layout run passes; preceding full 27-case release and 12-case focused handle/vertical-axis run are recorded above, not a new full 31-case certification |
 | Responsive/keyboard UX | 375/768/1440px, no horizontal overflow, reduced motion, mobile chat drawer, Escape/focus return, pointer and keyboard reorder pass |
 | Visual review | Desktop synthetic dashboard and live counted tab bar inspected; clickdummy remains unchanged |
 | Reference validation | Scoped URLs, organization identity, malformed encoding, zero/unsafe numeric IDs, offline retention, and cross-organization cache separation tested |

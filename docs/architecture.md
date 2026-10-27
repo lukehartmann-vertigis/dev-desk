@@ -49,6 +49,8 @@ clickdummy into the accepted visual hierarchy without copying its demo logic.
 | Fullstack/UI | Next.js App Router + compatible React | Node runtime, not Edge or serverless |
 | Styling | Tailwind CSS | Shared tokens; no second styling framework |
 | Animation | Framer Motion | Small client boundaries; respect reduced motion |
+| Todo sorting | dnd-kit core/sortable/utilities | Explicit handles, pointer/touch/keyboard sensors; shared server mutation |
+| Assistant Markdown | react-markdown + remark-gfm | No raw HTML/images; exact known HTTPS ADO links only |
 | Persistence | SQLite + better-sqlite3 | Short synchronous transactions, single app replica |
 | Schema/migrations | Drizzle ORM + Drizzle Kit | Reviewed, committed SQL migrations |
 | Runtime validation | Zod | HTTP, configuration, tool input, and upstream boundaries |
@@ -79,7 +81,10 @@ src/
             api.ts                 Validated browser HTTP boundary
             todo-list.tsx          Todo input, rows, ordering, reduced motion
             chat-panel.tsx         Transcript, composer, safe source links
+            message-content.tsx    Safe assistant GFM and literal user messages
+            tool-outcome.tsx       Compact native tool disclosures and honest outcome summaries
             devops-tabs.tsx        Counted tabs, cached work/PR views, metadata
+            devops-groups.ts       Pure local team/repository grouping and row markers
             scope-legend.tsx       Deterministic scope colors and sidebar legends
             modal.tsx              Native dialog focus/Escape behavior
             dashboard-dialogs.tsx  Edit/deletion/clear confirmations

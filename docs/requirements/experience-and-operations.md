@@ -25,11 +25,24 @@ Acceptance:
   accessible drawer without removing todo functionality.
 - Use the user-provided clickdummy's visual hierarchy: left context rail, todos
   at the top of the main column, the tabbed DevOps panel, and right-hand chat.
-- There is no separate Daily Todos page and no repository display filter.
+- There is no separate Daily Todos page or global repository filter.
 - Noninteractive legends show PR repositories and the PAT user's team-board
   area scopes. Dots and row edges use consistent colors alongside textual
   labels. Multiple board matches are retained; unknown or stale mapping is
   explicit. Legends never hide PRs, work items, or local todos.
+- The tab body provides colored, single-select team chips for work items and
+  repository chips for both PR views. The first chip in stable legend order is
+  initially active; known scopes retain zero counts. Each tab retains its own
+  selected identity through tab changes/cache updates, falling back to the first
+  available chip if that identity disappears. Reload starts with the first chip.
+- Every overlapping team match includes the work item. Nonempty "No team" and
+  "Assignment unknown" chips are separate: only a successful, fresh mapping
+  establishes no match. Missing area metadata or unresolved/stale nonmatches
+  remain unknown; last-good matching teams stay usable. Unexpected repository
+  metadata is reachable through "Repository unknown".
+- Chip selection is local presentation only, not a synchronization, todo, or
+  agent-context filter. Per-chip counts may overlap; dataset tab totals and
+  all stale/error notices remain independent of the selected chip.
 - External navigation opens Azure DevOps rather than an in-app work-item editor.
 
 See the [frontend concept](../frontend-concept.md) for the reference and required
@@ -66,6 +79,8 @@ Acceptance:
   Left/Right arrows wrap between tabs; Home/End select the first/last tab.
   Tab reaches the selected panel. Switching views does not issue upstream reads
   or mutations, reset todos/chat, or reset the selected tab during cache updates.
+- Scope chips are named buttons with one pressed state per tab and keyboard
+  activation. Tool outcomes use native keyboard-accessible disclosures.
 
 ### UX-004 — Motion
 
@@ -83,8 +98,19 @@ untrusted markup.
 
 Acceptance:
 - Raw HTML is not executed; links accept only safe, validated destinations.
+- Saved and streaming assistant messages support Markdown headings, emphasis,
+  lists, quotes, code, and GFM tables/task lists. User text and tool outcomes
+  remain literal; generated task checkboxes are not mutation controls.
+- Rendering does not load external images or embeds. Unsupported/unsafe link
+  destinations remain readable text, not clickable navigation.
 - Azure DevOps links target the configured organization and object scope.
 - Secrets and upstream stack traces are not shown in error messages.
+- Tool outcomes start as one compact, collapsed line with tool/action and outcome
+  state. Their complete literal payload and timestamp remain expandable.
+  An unsuccessful envelope is visibly failed even if its transcript status is
+  complete; pending deletion approval is not presented as completed deletion.
+  Legacy/unrecognized tool content is explicitly unstructured, never inferred
+  successful. Long payloads stay inside the chat.
 
 ### UX-006 — Action feedback
 
