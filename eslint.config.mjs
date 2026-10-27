@@ -4,6 +4,7 @@ import hooks from 'eslint-plugin-react-hooks';
 import { defineConfig } from 'eslint/config';
 import ts from 'typescript-eslint';
 
+/** Shared correctness/readability rules; generated output and migration artifacts are excluded. */
 export default defineConfig(
 	{
 		ignores: [
@@ -38,6 +39,17 @@ export default defineConfig(
 			},
 		},
 		plugins: { '@next/next': next, 'react-hooks': hooks },
-		rules: { ...next.configs['core-web-vitals'].rules, ...hooks.configs.recommended.rules },
+		rules: {
+			...next.configs['core-web-vitals'].rules,
+			...hooks.configs.recommended.rules,
+			curly: ['error', 'all'],
+			'one-var': ['error', 'never'],
+			'no-nested-ternary': 'error',
+			'max-statements-per-line': ['error', { max: 1 }],
+			'padding-line-between-statements': [
+				'error',
+				{ blankLine: 'always', prev: '*', next: ['function', 'class'] },
+			],
+		},
 	},
 );

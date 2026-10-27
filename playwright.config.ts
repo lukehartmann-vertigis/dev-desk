@@ -1,5 +1,6 @@
 import { defineConfig } from '@playwright/test';
 
+/** Serial browser workflows; mutating runs must target an isolated instance via DEVDESK_TEST_URL. */
 export default defineConfig({
 	testDir: './tests/e2e',
 	workers: 1,

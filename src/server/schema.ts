@@ -1,6 +1,7 @@
 import { integer, sqliteTable, text } from 'drizzle-orm/sqlite-core';
 import type { Reference } from '../lib/contracts';
 
+/** Durable todos; completion retains identity and an optional typed ADO reference. */
 export const todos = sqliteTable('todos', {
 	id: text().primaryKey(),
 	title: text().notNull(),
@@ -11,15 +12,18 @@ export const todos = sqliteTable('todos', {
 	updatedAt: text().notNull(),
 	reference: text({ mode: 'json' }).$type<Reference | null>(),
 });
+/** Local revisions, lifecycle markers, SDK identities, and independently cached team scopes. */
 export const metadata = sqliteTable('metadata', {
 	key: text().primaryKey(),
 	value: text().notNull(),
 });
+/** Mutation receipts bind a request ID to a payload hash and a minimal committed outcome. */
 export const receipts = sqliteTable('receipts', {
 	id: text().primaryKey(),
 	payload: text().notNull(),
 	result: text().notNull(),
 });
+/** Organization-scoped last-good ADO datasets; failures replace error metadata, not data. */
 export const snapshots = sqliteTable('snapshots', {
 	scope: text().primaryKey(),
 	dataset: text().notNull(),
@@ -27,11 +31,13 @@ export const snapshots = sqliteTable('snapshots', {
 	successAt: text(),
 	error: text(),
 });
+/** Durable chat-run status; startup marks unfinished runs interrupted. */
 export const runs = sqliteTable('runs', {
 	id: text().primaryKey(),
 	status: text().notNull(),
 	createdAt: text().notNull(),
 });
+/** Local transcript and tool outcomes, deleted with their owning run on confirmed clearing. */
 export const messages = sqliteTable('messages', {
 	id: text().primaryKey(),
 	runId: text()
@@ -42,6 +48,7 @@ export const messages = sqliteTable('messages', {
 	status: text().notNull(),
 	createdAt: text().notNull(),
 });
+/** Revision-bound deletion approvals; todo/run removal cascades and consumption is one-use. */
 export const approvals = sqliteTable('approvals', {
 	id: text().primaryKey(),
 	todoId: text()

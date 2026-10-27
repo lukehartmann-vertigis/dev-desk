@@ -47,14 +47,18 @@ vi.mock('@github/copilot-sdk', () => {
 		}
 		async sendAndWait() {
 			const stage = this.config.tools?.length ? 'conversation' : 'classifier';
-			if (fake.failure === stage)
+			if (fake.failure === stage) {
 				throw new Error('Synthetic upstream failure containing private request context.');
-			if (!this.config.tools?.length) return { intent: fake.intent };
+			}
+			if (!this.config.tools?.length) {
+				return { intent: fake.intent };
+			}
 			await fake.execute?.(this.config.tools);
-			if (fake.block)
+			if (fake.block) {
 				await new Promise<never>((_, reject) => {
 					fake.reject = reject;
 				});
+			}
 			return { data: { content: 'Synthetic answer.' } };
 		}
 		async disconnect() {}
@@ -75,11 +79,15 @@ vi.mock('@github/copilot-sdk', () => {
 				return new Session(config);
 			}
 			async resumeSession(id: string, config: SessionConfig) {
-				if (!fake.ids.has(id)) throw new Error('Missing context');
+				if (!fake.ids.has(id)) {
+					throw new Error('Missing context');
+				}
 				return new Session(config, id);
 			}
 			async deleteSession(id: string) {
-				if (fake.deleteFails) throw new Error('Synthetic cleanup failure');
+				if (fake.deleteFails) {
+					throw new Error('Synthetic cleanup failure');
+				}
 				fake.ids.delete(id);
 			}
 			async listSessions() {
@@ -89,7 +97,10 @@ vi.mock('@github/copilot-sdk', () => {
 	};
 });
 
-let directory: string, store: Store, chat: Chat, azure: Azure;
+let directory: string;
+let store: Store;
+let chat: Chat;
+let azure: Azure;
 beforeEach(() => {
 	directory = mkdtempSync(join(tmpdir(), 'devdesk-chat-'));
 	store = openStore(join(directory, 'test.db'));
@@ -116,9 +127,12 @@ afterEach(async () => {
 	rmSync(directory, { recursive: true });
 	vi.useRealTimers();
 });
+
 async function call(tools: Tool[], name: string, args: unknown, toolCallId = 'call-1') {
 	const tool = tools.find((tool) => tool.name === name);
-	if (!tool?.handler) throw new Error(`Tool not registered: ${name}`);
+	if (!tool?.handler) {
+		throw new Error(`Tool not registered: ${name}`);
+	}
 	return tool.handler(args, {
 		sessionId: 'synthetic',
 		toolCallId,
@@ -126,6 +140,7 @@ async function call(tools: Tool[], name: string, args: unknown, toolCallId = 'ca
 		arguments: args,
 	});
 }
+
 function run(signal = new AbortController().signal) {
 	return chat.start('Synthetic user request', randomUUID(), signal, () => {});
 }
@@ -178,12 +193,13 @@ describe('bounded durable Copilot integration', () => {
 		async (intent) => {
 			fake.intent = intent;
 			await run();
-			for (const policy of fake.configs)
+			for (const policy of fake.configs) {
 				expect(
 					policy.tools?.some(
 						(tool) => tool.name.includes('mutate') || tool.name.includes('deletion'),
 					) ?? false,
 				).toBe(false);
+			}
 			expect(readTodos(store).items).toEqual([]);
 		},
 	);
@@ -281,7 +297,9 @@ describe('bounded durable Copilot integration', () => {
 		expect(readTodos(store).items).toHaveLength(1);
 		expect(pendingApprovals(store)).toHaveLength(1);
 		const approval = pendingApprovals(store)[0];
-		if (!approval) throw new Error('Missing approval');
+		if (!approval) {
+			throw new Error('Missing approval');
+		}
 		approveDeletion(store, approval.id, true, randomUUID());
 		expect(readTodos(store).items).toEqual([]);
 		expect(() => approveDeletion(store, approval.id, true, randomUUID())).toThrow();
@@ -289,13 +307,14 @@ describe('bounded durable Copilot integration', () => {
 	it('AI-011 includes classification in the ten-invocation budget', async () => {
 		fake.intent = 'mutate';
 		fake.execute = async (tools) => {
-			for (let index = 0; index < 10; index++)
+			for (let index = 0; index < 10; index++) {
 				await call(
 					tools,
 					'mutate_todo',
 					{ operation: 'create', title: `Task ${index}` },
 					`call-${index}`,
 				);
+			}
 		};
 		await run();
 		expect(readTodos(store).items).toHaveLength(9);
@@ -342,8 +361,8 @@ describe('bounded durable Copilot integration', () => {
 			registered = tools;
 			await call(tools, 'mutate_todo', { operation: 'create', title: 'Already committed' });
 		};
-		const controller = new AbortController(),
-			done = run(controller.signal);
+		const controller = new AbortController();
+		const done = run(controller.signal);
 		await vi.waitFor(() => expect(fake.reject).toBeTypeOf('function'));
 		controller.abort();
 		await done;

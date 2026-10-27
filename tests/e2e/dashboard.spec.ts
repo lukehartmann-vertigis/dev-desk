@@ -119,8 +119,8 @@ test('TODO-001/UX-007: oversized titles are rejected without truncation or lost 
 test('TODO-010/011: multi-client conflicts and interrupted-response retry identities', async ({
 	request,
 }) => {
-	const requestId = randomUUID(),
-		title = `Concurrency ${requestId}`;
+	const requestId = randomUUID();
+	const title = `Concurrency ${requestId}`;
 	const create = { kind: 'create', requestId, title, reference: null };
 	expect((await request.post('/api/todos', { headers, data: create })).ok()).toBe(true);
 	const replay = dashboardSchema.parse(
@@ -128,7 +128,9 @@ test('TODO-010/011: multi-client conflicts and interrupted-response retry identi
 	);
 	expect(replay.todos.items.filter((todo) => todo.title === title)).toHaveLength(1);
 	const todo = replay.todos.items.find((todo) => todo.title === title);
-	if (!todo) throw new Error('Missing created todo');
+	if (!todo) {
+		throw new Error('Missing created todo');
+	}
 	const edit = {
 		kind: 'edit',
 		requestId: randomUUID(),
@@ -228,9 +230,13 @@ test('ADO-003/004/005/008/010, UX-005/OPS-007: populated tabs, safe text and dis
 }) => {
 	const state = dashboardSchema.parse(await (await request.get('/api/state')).json());
 	const repository = state.ado.repositories[0];
-	if (!repository) throw new Error('Missing configured repository');
+	if (!repository) {
+		throw new Error('Missing configured repository');
+	}
 	const secondRepository = state.ado.repositories[1];
-	if (!secondRepository) throw new Error('Missing second configured repository');
+	if (!secondRepository) {
+		throw new Error('Missing second configured repository');
+	}
 	const mapping: BoardScope = {
 		project: 'Utilities',
 		boards: [
@@ -347,9 +353,9 @@ test('ADO-003/004/005/008/010, UX-005/OPS-007: populated tabs, safe text and dis
 	};
 	await page.route('**/api/state', (route) => route.fulfill({ json: state }));
 	await page.goto('/');
-	const workTab = page.getByRole('tab', { name: /^Assigned work items/ }),
-		reviewTab = page.getByRole('tab', { name: /^Review requests/ }),
-		ownTab = page.getByRole('tab', { name: /^Your pull requests/ });
+	const workTab = page.getByRole('tab', { name: /^Assigned work items/ });
+	const reviewTab = page.getByRole('tab', { name: /^Review requests/ });
+	const ownTab = page.getByRole('tab', { name: /^Your pull requests/ });
 	await expect(page.getByRole('tab')).toHaveCount(3);
 	await expect(page.getByRole('tabpanel')).toHaveCount(1);
 	await expect(workTab).toHaveAttribute('aria-selected', 'true');
@@ -374,44 +380,55 @@ test('ADO-003/004/005/008/010, UX-005/OPS-007: populated tabs, safe text and dis
 	expect(await page.evaluate(() => Reflect.has(window, 'devdeskInjected'))).toBe(false);
 	await expect(page.locator('img')).toHaveCount(0);
 	await expect(page.locator('.sidebar input')).toHaveCount(0);
-	const repoLegend = page.getByRole('region', { name: 'PR repository legend' }),
-		boardLegend = page.getByRole('region', { name: 'Team board legend' }),
-		workRow = page.locator('.work-row').filter({ hasText: title });
-	for (const repo of [repository, secondRepository])
+	const repoLegend = page.getByRole('region', { name: 'PR repository legend' });
+	const boardLegend = page.getByRole('region', { name: 'Team board legend' });
+	const workRow = page.locator('.work-row').filter({ hasText: title });
+	for (const repo of [repository, secondRepository]) {
 		await expect(repoLegend).toContainText(repo.name);
+	}
 	const repoColors = await repoLegend
-			.locator('.legend-dot')
-			.evaluateAll((dots) => dots.map((dot) => getComputedStyle(dot).backgroundColor)),
-		boardColors = await boardLegend
-			.locator('.legend-dot')
-			.evaluateAll((dots) => dots.map((dot) => getComputedStyle(dot).backgroundColor));
+		.locator('.legend-dot')
+		.evaluateAll((dots) => dots.map((dot) => getComputedStyle(dot).backgroundColor));
+	const boardColors = await boardLegend
+		.locator('.legend-dot')
+		.evaluateAll((dots) => dots.map((dot) => getComputedStyle(dot).backgroundColor));
 	expect(new Set(repoColors).size).toBe(2);
 	expect(new Set(boardColors).size).toBe(2);
 	expect(boardColors.every((color) => !repoColors.includes(color))).toBe(true);
 	const luminance = (rgb: string) => {
 		const channels = rgb.match(/[\d.]+/g)?.map(Number);
-		if (!channels || channels.length !== 3)
+		if (!channels || channels.length !== 3) {
 			throw new Error('Expected an opaque computed RGB color.');
+		}
 		return channels.reduce((sum, value, index) => {
-			const channel = value / 255,
-				linear = channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4;
-			return sum + linear * (index === 0 ? 0.2126 : index === 1 ? 0.7152 : 0.0722);
+			const channel = value / 255;
+			const linear =
+				channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4;
+			let weight = 0.0722;
+			if (index === 0) {
+				weight = 0.2126;
+			} else if (index === 1) {
+				weight = 0.7152;
+			}
+			return sum + linear * weight;
 		}, 0);
 	};
-	const contrast = (a: number, b: number) => (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05),
-		boardLuminances = boardColors.map(luminance),
-		surfaces = await page
-			.locator('.sidebar, section[aria-label="Azure DevOps"]')
-			.evaluateAll((elements) =>
-				elements.map((element) => getComputedStyle(element).backgroundColor),
-			);
+	const contrast = (a: number, b: number) => (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05);
+	const boardLuminances = boardColors.map(luminance);
+	const surfaces = await page
+		.locator('.sidebar, section[aria-label="Azure DevOps"]')
+		.evaluateAll((elements) =>
+			elements.map((element) => getComputedStyle(element).backgroundColor),
+		);
 	expect(
 		contrast(Math.max(...boardLuminances), Math.min(...boardLuminances)),
 	).toBeGreaterThanOrEqual(3);
 	expect(surfaces).toHaveLength(2);
-	for (const surface of surfaces)
-		for (const board of boardLuminances)
+	for (const surface of surfaces) {
+		for (const board of boardLuminances) {
 			expect(contrast(board, luminance(surface))).toBeGreaterThanOrEqual(3);
+		}
+	}
 	expect(
 		await workTab.locator('.tab-count').evaluate((element) => getComputedStyle(element).color),
 	).not.toBe(
@@ -498,19 +515,21 @@ for (const width of [375, 768, 1440]) {
 				stale: false,
 			})),
 		};
-		let reads = 0,
-			mutations = 0;
+		let reads = 0;
+		let mutations = 0;
 		page.on('request', (request) => {
-			if (request.method() === 'POST' && request.url().includes('/api/')) mutations++;
+			if (request.method() === 'POST' && request.url().includes('/api/')) {
+				mutations++;
+			}
 		});
 		await page.route('**/api/state', (route) => {
 			reads++;
 			return route.fulfill({ json: state });
 		});
 		await page.goto('/');
-		const workTab = page.getByRole('tab', { name: /^Assigned work items/ }),
-			reviewTab = page.getByRole('tab', { name: /^Review requests/ }),
-			ownTab = page.getByRole('tab', { name: /^Your pull requests/ });
+		const workTab = page.getByRole('tab', { name: /^Assigned work items/ });
+		const reviewTab = page.getByRole('tab', { name: /^Review requests/ });
+		const ownTab = page.getByRole('tab', { name: /^Your pull requests/ });
 		for (const tab of [workTab, reviewTab, ownTab]) {
 			await expect(tab.locator('.tab-count')).toHaveText('0 items');
 			await tab.click();
@@ -536,9 +555,11 @@ for (const width of [375, 768, 1440]) {
 		await expect(page.getByRole('tabpanel')).toBeFocused();
 		expect(reads).toBe(1);
 		expect(mutations).toBe(0);
-		const repo = state.ado.repositories[0],
-			ownScope = state.ado.snapshots.find((scope) => scope.dataset === 'own');
-		if (!repo || !ownScope) throw new Error('Missing synthetic tab scope');
+		const repo = state.ado.repositories[0];
+		const ownScope = state.ado.snapshots.find((scope) => scope.dataset === 'own');
+		if (!repo || !ownScope) {
+			throw new Error('Missing synthetic tab scope');
+		}
 		ownScope.data = [
 			{
 				id: 42,
@@ -615,7 +636,9 @@ for (const width of [375, 1440]) {
 			});
 		});
 		await page.goto('/');
-		if (width < 1200) await page.getByRole('button', { name: 'Open chat' }).click();
+		if (width < 1200) {
+			await page.getByRole('button', { name: 'Open chat' }).click();
+		}
 		const input = page
 			.getByRole('textbox', { name: 'Message to Copilot' })
 			.filter({ visible: true });
@@ -641,9 +664,13 @@ for (const width of [375, 1440]) {
 		await expect(input).toBeEnabled();
 		await expect(input).toHaveValue('');
 		state.copilot.cleanupPending = true;
-		if (width < 1200) await page.getByRole('button', { name: 'Close Copilot chat' }).click();
+		if (width < 1200) {
+			await page.getByRole('button', { name: 'Close Copilot chat' }).click();
+		}
 		await page.reload();
-		if (width < 1200) await page.getByRole('button', { name: 'Open chat' }).click();
+		if (width < 1200) {
+			await page.getByRole('button', { name: 'Open chat' }).click();
+		}
 		await input.fill('Blocked during cleanup');
 		await input.press('Enter');
 		await expect(
@@ -705,8 +732,8 @@ for (const width of [375, 768, 1440]) {
 			const messages = page.locator('.desktop-chat .messages');
 			expect(await messages.evaluate((element) => element.scrollTop)).toBe(initialChatScroll);
 			const mainScroll = await main.evaluate((element) => element.scrollTop);
-			const mainBox = await main.boundingBox(),
-				chatBox = await page.locator('.desktop-chat').boundingBox();
+			const mainBox = await main.boundingBox();
+			const chatBox = await page.locator('.desktop-chat').boundingBox();
 			expect(mainBox && chatBox && mainBox.x + mainBox.width <= chatBox.x + 1).toBe(true);
 			await messages.hover();
 			await page.mouse.wheel(0, -350);

@@ -134,6 +134,42 @@ It passes on the isolated production image; all 61 release tests, type/lint/
 format checks, and build also pass. Live Chromium measured **3.35:1** between
 the team dots. The app is healthy and todo/chat fingerprints are unchanged.
 
+### Readability, module boundaries, and public documentation — 2026-10-27
+
+The workspace composition now lives in a 139-line dashboard entry point, with
+separate todo, chat, DevOps-tab, legend, modal, and confirmation components.
+A single controller retains polling, mutation locks, retry identities, and
+stream cancellation. Shared contracts are grouped by domain behind their
+existing facade. REST transport/retries, SDK policy, and NDJSON responses have
+focused server modules; existing contract/policy import paths remain valid.
+
+Verification:
+- Production Docker checks pass: strict types, zero-warning ESLint, formatting,
+  all **78 tests across seven files**, and the Next.js build. No database is
+  created during compilation.
+- The 17 added boundary cases cover authenticated REST/version handling, bounded
+  retries, Retry-After/cancellation/error behavior, and chat stream heartbeats,
+  completion, rejected starts, and disconnect propagation.
+- All **21 Chromium cases** pass on the isolated, token-free production image.
+  Existing todo, Enter/IME, modal focus, reduced-motion, responsive, tab/count,
+  legend/contrast, and independent-scroll behavior remains verified.
+- A TypeScript-symbol audit resolves re-export aliases and finds JSDoc on all
+  **92 exported application declarations and 23 public class members**.
+  Comments describe contracts, persistence, lifecycle, constraints, and failures;
+  internal comments remain limited to non-obvious intent.
+- The running app is updated and healthy. No chat or deletion approval was active
+  at replacement; complete todo and transcript fingerprints are unchanged.
+  Live Chromium reports three tabs, one visible panel, counts **18/6/4**, and
+  zero page errors.
+- All five real ADO datasets and the team-board mapping have successful timestamps
+  after this deployment, with no stale/error state. No live model prompt was sent
+  for this refactor; existing native/fake-provider tests cover the moved SDK policy.
+
+No database migration, dependency, credential, allowlist, or wire-shape change
+was introduced. The [code conventions](../code-style.md) and
+[module ownership](../architecture.md#3-module-ownership) document the new layout
+and enforced readability rules.
+
 ## 1. Verified results
 
 Environment: Linux x86_64, Node.js 24.22.1/npm 11.19.1 in Docker, Next.js 16.4.3,
@@ -146,7 +182,7 @@ The root lockfile is authoritative; exact stack rationale is in the
 | Strict TypeScript | Pass for owned source, routes, tests, and UI |
 | ESLint | Pass, zero warnings |
 | Prettier | Pass for configured source/configuration files |
-| Vitest | 61 tests across five files pass; 60 domain/fake-provider/HTTP/configuration cases plus one actual native-runtime case |
+| Vitest | 78 tests across seven files pass; 77 domain/fake-provider/HTTP/configuration cases plus one actual native-runtime case |
 | Production build | Pass in the actual Dockerfile; build-time database path remains absent |
 | Non-root image | Pass; server runs as `node`, SQLite migrations/writes and packaged SDK native process work |
 | Chromium | All 21 workflow/layout/keyboard/tab/count/legend/scroll cases pass as one suite on an isolated production instance |

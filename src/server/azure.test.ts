@@ -7,7 +7,9 @@ import { configuration, initialRepositories } from './config';
 import { openStore, type Store } from './store';
 import { matchesBoardArea } from '../lib/contracts';
 
-let directory: string, store: Store, service: Azure | undefined;
+let directory: string;
+let store: Store;
+let service: Azure | undefined;
 beforeEach(() => {
 	directory = mkdtempSync(join(tmpdir(), 'devdesk-ado-'));
 	store = openStore(join(directory, 'test.db'));
@@ -18,8 +20,8 @@ afterEach(async () => {
 	store.sqlite.close();
 	rmSync(directory, { recursive: true });
 });
-const user = '11111111-1111-4111-8111-111111111111',
-	project = '1426d070-28f0-4cd2-9493-5b75482f174f';
+const user = '11111111-1111-4111-8111-111111111111';
+const project = '1426d070-28f0-4cd2-9493-5b75482f174f';
 const pr = (reviewers: { id: string; vote?: number }[]) => ({
 	pullRequestId: 1,
 	title: 'A PR',
@@ -73,6 +75,7 @@ describe('read-only ADO adapter', () => {
 			).toThrow();
 		},
 	);
+
 	function transport(
 		options: {
 			failWork?: boolean;
@@ -86,19 +89,23 @@ describe('read-only ADO adapter', () => {
 		} = {},
 	): typeof fetch {
 		return async (input, init) => {
-			const url = new URL(String(input)),
-				path = url.pathname;
+			const url = new URL(String(input));
+			const path = url.pathname;
 			if (path.endsWith('/connectionData')) {
 				expect(url.searchParams.get('api-version')).toBe('7.1-preview.1');
 				return Response.json({ authenticatedUser: { id: user } });
 			}
 			if (path.includes('/graph/')) {
-				if (options.graphDenied) return new Response('', { status: 403 });
-				if (path.includes('/descriptors/'))
+				if (options.graphDenied) {
+					return new Response('', { status: 403 });
+				}
+				if (path.includes('/descriptors/')) {
 					return Response.json({ value: 'userDescriptor' });
-				if (path.includes('/storagekeys/'))
+				}
+				if (path.includes('/storagekeys/')) {
 					return Response.json({ value: path.endsWith('parentA') ? 'group' : 'other' });
-				if (path.includes('/memberships/'))
+				}
+				if (path.includes('/memberships/')) {
 					return Response.json({
 						value: [
 							{
@@ -108,11 +115,14 @@ describe('read-only ADO adapter', () => {
 							},
 						],
 					});
+				}
 			}
 			if (path.endsWith('/teams')) {
 				expect(url.searchParams.get('$mine')).toBe('true');
 				expect(url.searchParams.get('$top')).toBe('100');
-				if (options.teamsDenied) return new Response('', { status: 403 });
+				if (options.teamsDenied) {
+					return new Response('', { status: 403 });
+				}
 				const skip = options.repeatTeams ? 0 : Number(url.searchParams.get('$skip'));
 				return Response.json({
 					value: Array.from({ length: options.teamCount ?? 2 }, (_, index) => ({
@@ -122,7 +132,9 @@ describe('read-only ADO adapter', () => {
 				});
 			}
 			if (path.endsWith('/teamfieldvalues')) {
-				if (options.settingsDenied) return new Response('', { status: 403 });
+				if (options.settingsDenied) {
+					return new Response('', { status: 403 });
+				}
 				return Response.json({
 					field: {
 						referenceName: options.unsupportedField
@@ -137,19 +149,21 @@ describe('read-only ADO adapter', () => {
 					],
 				});
 			}
-			if (path.includes('/projects/'))
+			if (path.includes('/projects/')) {
 				return Response.json({ id: project, name: 'Utilities' });
+			}
 			if (path.endsWith('/wiql')) {
-				if (options.failWork) return new Response('', { status: 403 });
+				if (options.failWork) {
+					return new Response('', { status: 403 });
+				}
 				const body = JSON.parse(String(init?.body)) as { query: string };
-				return Response.json({
-					workItems:
-						options.multiplePages && body.query.includes('> 0 ')
-							? Array.from({ length: 1000 }, (_, index) => ({ id: index + 1 }))
-							: body.query.includes('> 1000 ')
-								? [{ id: 1001 }]
-								: [{ id: 1 }],
-				});
+				let workItems = [{ id: 1 }];
+				if (options.multiplePages && body.query.includes('> 0 ')) {
+					workItems = Array.from({ length: 1000 }, (_, index) => ({ id: index + 1 }));
+				} else if (body.query.includes('> 1000 ')) {
+					workItems = [{ id: 1001 }];
+				}
+				return Response.json({ workItems });
 			}
 			if (path.endsWith('/workitemsbatch')) {
 				const body = JSON.parse(String(init?.body)) as { ids: number[] };
@@ -165,7 +179,7 @@ describe('read-only ADO adapter', () => {
 					})),
 				});
 			}
-			if (path.endsWith('/pullrequests'))
+			if (path.endsWith('/pullrequests')) {
 				return Response.json({
 					value: [
 						{
@@ -174,13 +188,15 @@ describe('read-only ADO adapter', () => {
 						},
 					],
 				});
+			}
 			const repo = initialRepositories.find((repo) => path.endsWith(repo.id));
-			if (repo)
+			if (repo) {
 				return Response.json({
 					...repo,
 					project: { id: project, name: 'Utilities' },
 					isDisabled: false,
 				});
+			}
 			throw new Error(`Unexpected synthetic endpoint: ${path}`);
 		};
 	}
@@ -263,8 +279,8 @@ describe('read-only ADO adapter', () => {
 		},
 	);
 	it('refreshes core work and PR snapshots before annotation requests consume the remaining deadline', async () => {
-		const paths: string[] = [],
-			upstream = transport();
+		const paths: string[] = [];
+		const upstream = transport();
 		service = new Azure(
 			store,
 			configuration({ AZURE_DEVOPS_PAT: 'synthetic' }),

@@ -2,25 +2,35 @@ import { dirname, join, resolve } from 'node:path';
 import { z } from 'zod';
 import type { IntegrationStatus } from '../lib/contracts';
 
+/** Initial display identities and default allowlist; discovery never auto-enables other repositories. */
 export const initialRepositories = [
 	{ id: '446326e4-f451-4018-99ec-e80e667cbec2', project: 'Utilities', name: 'network-locator' },
 	{ id: '87401d25-3efa-41f0-b5ea-a3438dc77e6c', project: 'Utilities', name: 'Utilities' },
 ];
 const nonempty = z.string().trim().min(1);
 const list = (value: string) => value.split(',').map((item) => item.trim());
+
 function status(present: boolean, valid: boolean, name: string): IntegrationStatus {
-	return !present
-		? {
-				state: 'disabled',
-				message: `${name} is not configured. Set its token in .env and restart.`,
-			}
-		: valid
-			? { state: 'ready', message: `${name} configured. Connection is checked when used.` }
-			: {
-					state: 'configuration_error',
-					message: `${name} configuration is invalid or incomplete. Check .env and restart.`,
-				};
+	if (!present) {
+		return {
+			state: 'disabled',
+			message: `${name} is not configured. Set its token in .env and restart.`,
+		};
+	}
+	if (valid) {
+		return { state: 'ready', message: `${name} configured. Connection is checked when used.` };
+	}
+	return {
+		state: 'configuration_error',
+		message: `${name} configuration is invalid or incomplete. Check .env and restart.`,
+	};
 }
+
+/**
+ * Validates local settings without I/O. Invalid core settings throw; integration failures
+ * become independent disabled/error states so local todos remain usable.
+ * The returned configuration contains secrets and must stay server-side.
+ */
 export function configuration(env: Readonly<Record<string, string | undefined>> = process.env) {
 	const core = z.object({ database: nonempty, origin: z.url() }).parse({
 		database: env.DATABASE_PATH ?? '.data/dashboard.db',
@@ -76,4 +86,5 @@ export function configuration(env: Readonly<Record<string, string | undefined>> 
 		copilotStatus: status(copilotPresent, copilot.success, 'Copilot'),
 	};
 }
+/** Validated server-only settings; ready integration status does not establish upstream access. */
 export type Configuration = ReturnType<typeof configuration>;

@@ -6,6 +6,7 @@ import { AppError } from './errors';
 import { todos, receipts, approvals } from './schema';
 import { meta, setMeta, type Store } from './store';
 
+/** Reads the complete local list in stored position order without contacting Azure DevOps. */
 export function readTodos(store: Store): TodoList {
 	return {
 		revision: Number(meta(store, 'listRevision')),
@@ -17,7 +18,12 @@ export function readTodos(store: Store): TodoList {
 			.map((todo) => ({ ...todo, reference: todo.reference ?? null })),
 	};
 }
-/** Commits data and retry receipt atomically. Stale revisions and reused request IDs are errors. */
+/**
+ * Validates and atomically commits a command, list revision, and retry receipt.
+ * Replaying the same request returns its recorded outcome without another write.
+ * Throws on invalid input, stale revisions, changed retry payloads, or storage failure.
+ * The reference validator runs only for new/changed non-null references, inside the transaction.
+ */
 export function mutateTodo(
 	store: Store,
 	input: Mutation,
@@ -32,12 +38,13 @@ export function mutateTodo(
 			.where(eq(receipts.id, command.requestId))
 			.get();
 		if (receipt) {
-			if (receipt.payload !== payload)
+			if (receipt.payload !== payload) {
 				throw new AppError(
 					'REQUEST_REUSED',
 					'This request ID was already used for another operation.',
 					409,
 				);
+			}
 			return z
 				.object({ listRevision: z.number(), todoId: z.string().nullable() })
 				.parse(JSON.parse(receipt.result));
@@ -51,7 +58,9 @@ export function mutateTodo(
 				...current.items.filter((todo) => !todo.completedAt).map((todo) => todo.position),
 			) + 1;
 		if (command.kind === 'create') {
-			if (command.reference) validateReference(command.reference);
+			if (command.reference) {
+				validateReference(command.reference);
+			}
 			todoId = randomUUID();
 			store.db
 				.insert(todos)
@@ -73,12 +82,13 @@ export function mutateTodo(
 				new Set(command.ids).size !== open.length ||
 				command.ids.length !== open.length ||
 				command.ids.some((id) => !open.some((todo) => todo.id === id))
-			)
+			) {
 				throw new AppError(
 					'CONFLICT',
 					'The list changed. Reload the current order and try again.',
 					409,
 				);
+			}
 			command.ids.forEach((id, position) =>
 				store.db
 					.update(todos)
@@ -88,40 +98,39 @@ export function mutateTodo(
 			);
 		} else {
 			const todo = current.items.find((item) => item.id === command.id);
-			if (!todo || todo.revision !== command.revision)
+			if (!todo || todo.revision !== command.revision) {
 				throw new AppError(
 					'CONFLICT',
 					'This todo changed or was deleted. The current list has been refreshed; review it before retrying.',
 					409,
 				);
+			}
 			if (
 				command.kind === 'edit' &&
 				command.reference &&
 				JSON.stringify(command.reference) !== JSON.stringify(todo.reference)
-			)
+			) {
 				validateReference(command.reference);
-			if (command.kind === 'delete')
+			}
+			if (command.kind === 'delete') {
 				store.db.delete(todos).where(eq(todos.id, todo.id)).run();
-			else
-				store.db
-					.update(todos)
-					.set({
-						revision: todo.revision + 1,
-						updatedAt: now,
-						...(command.kind === 'edit'
-							? { title: command.title, reference: command.reference }
-							: {
-									completedAt: command.completed
-										? (todo.completedAt ?? now)
-										: null,
-									position:
-										!command.completed && todo.completedAt
-											? nextPosition
-											: todo.position,
-								}),
-					})
-					.where(eq(todos.id, todo.id))
-					.run();
+			} else {
+				const changes: Partial<typeof todos.$inferInsert> = {
+					revision: todo.revision + 1,
+					updatedAt: now,
+				};
+				if (command.kind === 'edit') {
+					changes.title = command.title;
+					changes.reference = command.reference;
+				} else {
+					changes.completedAt = command.completed ? (todo.completedAt ?? now) : null;
+					changes.position = todo.position;
+					if (!command.completed && todo.completedAt) {
+						changes.position = nextPosition;
+					}
+				}
+				store.db.update(todos).set(changes).where(eq(todos.id, todo.id)).run();
+			}
 		}
 		setMeta(store, 'listRevision', String(current.revision + 1));
 		const result = { listRevision: current.revision + 1, todoId };
@@ -132,6 +141,7 @@ export function mutateTodo(
 		return result;
 	});
 }
+/** Reads unconsumed approvals whose UTC expiry is still in the future; it does not consume them. */
 export function pendingApprovals(store: Store) {
 	return store.db
 		.select()
@@ -139,22 +149,29 @@ export function pendingApprovals(store: Store) {
 		.all()
 		.filter((approval) => !approval.consumed && approval.expiresAt > new Date().toISOString());
 }
+/**
+ * Consumes an exact, unexpired approval and optionally deletes its bound todo revision.
+ * Both changes are transactional; expired/used approvals and stale todos throw AppError.
+ * Rejecting consumes the approval without modifying the todo.
+ */
 export function approveDeletion(store: Store, id: string, accept: boolean, requestId: string) {
 	return store.db.transaction(() => {
 		const approval = store.db.select().from(approvals).where(eq(approvals.id, id)).get();
-		if (!approval || approval.consumed || approval.expiresAt <= new Date().toISOString())
+		if (!approval || approval.consumed || approval.expiresAt <= new Date().toISOString()) {
 			throw new AppError(
 				'APPROVAL_EXPIRED',
 				'The deletion approval is expired or has already been used.',
 				409,
 			);
-		if (accept)
+		}
+		if (accept) {
 			mutateTodo(store, {
 				kind: 'delete',
 				id: approval.todoId,
 				revision: approval.revision,
 				requestId,
 			});
+		}
 		store.db.update(approvals).set({ consumed: 1 }).where(eq(approvals.id, id)).run();
 		return readTodos(store);
 	});

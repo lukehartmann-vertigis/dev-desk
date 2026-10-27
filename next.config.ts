@@ -1,8 +1,10 @@
 import type { NextConfig } from 'next';
 
+/** Keeps native services server-side and applies shared browser response headers. */
 export default {
 	serverExternalPackages: ['better-sqlite3', '@github/copilot-sdk'],
 	poweredByHeader: false,
+	/** Applies the local application's content, framing and referrer policy to every route. */
 	async headers() {
 		return [
 			{

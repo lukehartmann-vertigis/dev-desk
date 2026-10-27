@@ -41,6 +41,15 @@ Prettier's language-specific output takes precedence where literal tabs or singl
 quotes are not appropriate (for example YAML, Markdown, and JSON). Do not hand-edit
 those formats to force invalid syntax.
 
+Readability rules enforced by ESLint:
+
+- Use braces for every control-flow body, including single statements.
+- Declare one variable per declaration and place at most one statement per line.
+- Avoid nested ternaries. Prefer a named intermediate value, explicit branches,
+  or a `switch` for multi-way selection.
+- Separate function/class declarations from preceding statements with a blank line.
+- Keep formatting readable rather than compressing unrelated operations onto a line.
+
 ## 3. Architecture rules
 
 - Components own presentation; services own business rules; adapters own external
@@ -51,6 +60,10 @@ those formats to force invalid syntax.
 - Prefer small functions and explicit value types over generic “manager” classes.
 - Introduce an abstraction only when there are real consumers or a meaningful
   external boundary. No speculative multi-provider framework.
+- Group contracts by domain behind a stable browser-safe entry point. Separate
+  UI presentation from polling, streaming, retry identities, and mutation guards.
+- Extract modules at cohesive responsibility boundaries, not arbitrary line
+  counts. Keep lifecycle/cancellation logic together when it shares state.
 - Validate HTTP/tool/config inputs and normalize Azure DevOps responses at the
   boundary. Do not spread raw external response objects throughout the UI.
 - Keep database transactions short; never perform network/model calls within them.
@@ -80,8 +93,15 @@ those formats to force invalid syntax.
 
 ## 6. Documentation and comments
 
-- Use concise JSDoc for public contracts whose constraints, side effects, or error
-  behavior are not clear from names and types.
+- Document exported application declarations and public service members with
+  concise JSDoc. This includes schemas/types, components/hooks, constructors,
+  lifecycle methods, getters, and framework entry points.
+- Explain the contract: constraints, return shape, local versus network access,
+  persistent side effects, ownership, cancellation, and failure behavior where
+  relevant. Do not merely repeat a declaration's name or TypeScript signature.
+- Document re-exported symbols at their defining declaration; do not duplicate
+  contracts in compatibility facades. Add field comments only for non-obvious
+  semantics, and use `@param`/`@returns`/`@throws` when they clarify the contract.
 - Comment non-obvious business rules or trade-offs, not self-explanatory code.
 - Update related requirements and ADRs when changing behavior or architecture.
 - Accepted ADRs are historical records. A changed decision gets a superseding ADR,

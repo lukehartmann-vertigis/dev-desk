@@ -4,8 +4,11 @@ import { AppError } from '../../../server/errors';
 import { body, failure, json, protect } from '../../../server/http';
 import { runtime as application } from '../../../server/runtime';
 import { approveDeletion, mutateTodo } from '../../../server/todos';
+import { chatResponse } from '../../../server/chat-response';
 
+/** Native SQLite and the managed SDK require the Node.js route runtime. */
 export const runtime = 'nodejs';
+/** Private workspace state and streams must never be prerendered or statically cached. */
 export const dynamic = 'force-dynamic';
 
 async function handle(request: Request, context: { params: Promise<{ path: string[] }> }) {
@@ -14,7 +17,9 @@ async function handle(request: Request, context: { params: Promise<{ path: strin
 		protect(request, app.config.origin);
 		const path = (await context.params).path.join('/');
 		if (request.method === 'GET') {
-			if (path === 'state') return json(app.state());
+			if (path === 'state') {
+				return json(app.state());
+			}
 			if (path === 'health') {
 				app.store.sqlite.prepare('SELECT 1').get();
 				return json({
@@ -28,8 +33,9 @@ async function handle(request: Request, context: { params: Promise<{ path: strin
 			}
 		} else if (request.method === 'POST') {
 			const input = await body(request);
-			if (app.stopping)
+			if (app.stopping) {
 				throw new AppError('STOPPING', 'The application is shutting down.', 503);
+			}
 			if (path === 'todos') {
 				mutateTodo(app.store, mutationSchema.parse(input), (reference) =>
 					app.azure.validate(reference),
@@ -40,8 +46,9 @@ async function handle(request: Request, context: { params: Promise<{ path: strin
 				const { url } = z.object({ url: z.url().max(2048) }).parse(input);
 				return json({ reference: app.azure.parseUrl(url), verified: false });
 			}
-			if (path === 'reference/check')
+			if (path === 'reference/check') {
 				return json(await app.azure.verify(referenceSchema.parse(input), request.signal));
+			}
 			if (path === 'refresh') {
 				void app.azure.refresh();
 				return json(app.state(), 202);
@@ -66,44 +73,7 @@ async function handle(request: Request, context: { params: Promise<{ path: strin
 				const command = z
 					.object({ prompt: z.string().trim().min(1).max(8000), requestId: z.uuid() })
 					.parse(input);
-				const abort = new AbortController(),
-					encoder = new TextEncoder();
-				let controller: ReadableStreamDefaultController<Uint8Array> | undefined;
-				let closed = false;
-				const stream = new ReadableStream<Uint8Array>({
-					start(value) {
-						controller = value;
-					},
-					cancel() {
-						closed = true;
-						abort.abort();
-					},
-				});
-				const notify = (value: unknown) => {
-					if (!closed) controller?.enqueue(encoder.encode(`${JSON.stringify(value)}\n`));
-				};
-				const done = app.chat.start(
-					command.prompt,
-					command.requestId,
-					AbortSignal.any([abort.signal, request.signal]),
-					notify,
-				);
-				notify({ type: 'started' });
-				const heartbeat = setInterval(() => notify({ type: 'heartbeat' }), 5000);
-				void done.finally(() => {
-					clearInterval(heartbeat);
-					if (!closed) {
-						closed = true;
-						controller?.close();
-					}
-				});
-				return new Response(stream, {
-					headers: {
-						'Content-Type': 'application/x-ndjson',
-						'Cache-Control': 'no-store',
-						'X-Accel-Buffering': 'no',
-					},
-				});
+				return chatResponse(app.chat, command, request.signal);
 			}
 		}
 		throw new AppError('NOT_FOUND', 'Unknown API operation.', 404);
@@ -111,5 +81,7 @@ async function handle(request: Request, context: { params: Promise<{ path: strin
 		return failure(error);
 	}
 }
+/** Reads local state/health after host validation; failures are redacted no-store JSON. */
 export const GET = handle;
+/** Validates same-origin commands and delegates writes, provider reads, and NDJSON streaming. */
 export const POST = handle;

@@ -8,7 +8,8 @@ import { openStore, type Store } from './store';
 import { approvals, receipts, runs } from './schema';
 import { approveDeletion, mutateTodo, readTodos } from './todos';
 
-let directory: string, store: Store;
+let directory: string;
+let store: Store;
 beforeEach(() => {
 	directory = mkdtempSync(join(tmpdir(), 'devdesk-test-'));
 	store = openStore(join(directory, 'test.db'));
@@ -17,12 +18,16 @@ afterEach(() => {
 	store.sqlite.close();
 	rmSync(directory, { recursive: true });
 });
+
 function create(title = 'A task', requestId = randomUUID()) {
 	return mutateTodo(store, { kind: 'create', title, reference: null, requestId });
 }
+
 function first() {
 	const todo = readTodos(store).items[0];
-	if (!todo) throw new Error('Missing test todo');
+	if (!todo) {
+		throw new Error('Missing test todo');
+	}
 	return todo;
 }
 
@@ -36,8 +41,8 @@ describe('persistent todo contracts', () => {
 		expect(readTodos(store).items).toHaveLength(2);
 	});
 	it('TODO-011 replays the same receipt and rejects a different payload', () => {
-		const id = randomUUID(),
-			result = create('Only once', id);
+		const id = randomUUID();
+		const result = create('Only once', id);
 		expect(create('Only once', id)).toEqual(result);
 		expect(() => create('Different', id)).toThrow('another operation');
 		expect(readTodos(store).items).toHaveLength(1);
@@ -113,8 +118,8 @@ describe('persistent todo contracts', () => {
 	it('TODO-008/010 validates the whole open list and its revision', () => {
 		create('One');
 		create('Two');
-		const current = readTodos(store),
-			ids = current.items.map((todo) => todo.id).reverse();
+		const current = readTodos(store);
+		const ids = current.items.map((todo) => todo.id).reverse();
 		mutateTodo(store, {
 			kind: 'reorder',
 			ids,
@@ -183,9 +188,9 @@ describe('persistent todo contracts', () => {
 	});
 	it('AI-007 approves only an exact, unexpired version and never reuses an approval', () => {
 		create();
-		const todo = first(),
-			runId = randomUUID(),
-			id = randomUUID();
+		const todo = first();
+		const runId = randomUUID();
+		const id = randomUUID();
 		store.db
 			.insert(runs)
 			.values({ id: runId, status: 'complete', createdAt: new Date().toISOString() })
@@ -217,9 +222,9 @@ describe('persistent todo contracts', () => {
 	});
 	it('AI-007 rejects expired or rejected approvals without deleting', () => {
 		create();
-		const todo = first(),
-			runId = randomUUID(),
-			id = randomUUID();
+		const todo = first();
+		const runId = randomUUID();
+		const id = randomUUID();
 		store.db
 			.insert(runs)
 			.values({ id: runId, status: 'complete', createdAt: new Date().toISOString() })

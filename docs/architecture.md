@@ -66,23 +66,37 @@ dependency baseline for the real application.
 
 ## 3. Module ownership
 
-Actual module ownership is intentionally flat until further extraction has real
-consumers:
+Modules follow domain and lifecycle boundaries. Compatibility facades preserve
+existing application import paths while implementations remain cohesive:
 
 ```text
 src/
     app/                  Next.js pages, route handlers, layouts
     components/
-        dashboard.tsx     Dashboard, todo controls, modals, and streamed chat UI
+        dashboard.tsx     Workspace composition
+        dashboard/
+            use-dashboard.ts       Polling, controlled forms, retries, chat lifecycle
+            api.ts                 Validated browser HTTP boundary
+            todo-list.tsx          Todo input, rows, ordering, reduced motion
+            chat-panel.tsx         Transcript, composer, safe source links
+            devops-tabs.tsx        Counted tabs, cached work/PR views, metadata
+            scope-legend.tsx       Deterministic scope colors and sidebar legends
+            modal.tsx              Native dialog focus/Escape behavior
+            dashboard-dialogs.tsx  Edit/deletion/clear confirmations
     lib/
-        contracts.ts      Browser-safe Zod contracts and canonical reference URLs
+        contracts.ts      Stable browser-safe domain facade
+        contracts/        References, todos, ADO, chat, dashboard schemas/types
+        format.ts         Locale-aware timestamp presentation
     server/
         config.ts         Independently validated core/ADO/Copilot settings
         schema.ts         Drizzle tables
         store.ts          SQLite ownership and runtime migrations
         todos.ts          Shared transactional mutations, receipts, approvals
-        azure.ts          REST adapter, identity, polling, and scoped snapshots
-        chat.ts           Managed SDK, policy, tools, transcript, and cleanup
+        azure.ts          Identity, scoped sync/cache, reference reads/validation
+        azure-http.ts     Authenticated REST transport, timeouts, bounded retries
+        chat.ts           Managed SDK, tools, transcript, cancellation/cleanup
+        chat-policy.ts    SDK isolation policy and tool/classification schemas
+        chat-response.ts  NDJSON transport, heartbeat, disconnect propagation
         runtime.ts        Process-owned resources and awaited shutdown
         http.ts           Localhost boundary and safe HTTP errors
         errors.ts         Trusted cross-entry errors and redacted JSON logs
@@ -99,8 +113,12 @@ Rules:
 - Server modules are explicitly server-only; client imports cannot reach
   credentials, database code, or the SDK.
 - Server Components read application services directly, not through self-HTTP.
-- No global client store initially. Local view state and a small shared
-  dashboard-refresh hook are sufficient.
+- No global client store. Controlled view state stays in React; transient tab,
+  drag, and focus state belongs to the relevant presentation component.
+- The dashboard controller co-owns pending-write locks, retry receipts, polling
+  and stream cancellation. Presentation components cannot bypass these guards.
+- Contract and SDK-policy re-exports retain their existing import paths. Extraction
+  does not alter wire shapes, database migrations, or the configured scope.
 - External APIs are accessed only by the server; SDK tools cannot bypass scoped
   application clients.
 

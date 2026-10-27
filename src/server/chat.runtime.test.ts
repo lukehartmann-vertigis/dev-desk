@@ -73,16 +73,18 @@ it('AI-008/012/013: native runtime enforces production policy on create/resume a
 				arguments: { reference },
 			});
 			expect(result).toMatchObject({ resultType: 'success' });
-			if (typeof result === 'string')
+			if (typeof result === 'string') {
 				throw new Error('Expected structured native tool result');
+			}
 			expect(JSON.parse(result.textResultForLlm)).toEqual({ synthetic: true, reference });
 		}
 		const allowed = await resumed.rpc.tools.execute({ name: 'list_todos', arguments: {} });
 		expect(allowed).toMatchObject({ resultType: 'success' });
-		for (const name of ['bash', 'mutate_todo'])
+		for (const name of ['bash', 'mutate_todo']) {
 			expect(await resumed.rpc.tools.execute({ name, arguments: {} })).toMatchObject({
 				resultType: 'failure',
 			});
+		}
 		await resumed.disconnect();
 		await client.deleteSession(id);
 		expect((await client.listSessions()).some((entry) => entry.sessionId === id)).toBe(false);
@@ -94,7 +96,9 @@ it('AI-008/012/013: native runtime enforces production policy on create/resume a
 		).toBe(false);
 	} finally {
 		const errors = await client.stop();
-		if (errors.length) await client.forceStop();
+		if (errors.length) {
+			await client.forceStop();
+		}
 		rmSync(directory, { recursive: true });
 		expect(errors).toEqual([]);
 	}

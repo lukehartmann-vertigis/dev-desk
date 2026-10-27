@@ -1,5 +1,4 @@
 import { z } from 'zod';
-import { setTimeout as delay } from 'node:timers/promises';
 import { boardScopeSchema, referenceSchema, referenceUrl, workSchema } from '../lib/contracts';
 import type {
 	BoardScope,
@@ -15,6 +14,7 @@ import { initialRepositories } from './config';
 import { AppError, log, safeError } from './errors';
 import { snapshots } from './schema';
 import { meta, setMeta, type Store } from './store';
+import { requestAzure, type AzureRequestOptions } from './azure-http';
 
 const object = z.record(z.string(), z.unknown());
 const collection = z.object({ value: z.array(object) });
@@ -35,23 +35,35 @@ const prSchema = z.object({
 });
 type RawPr = z.infer<typeof prSchema>;
 
+/**
+ * Applies personal/group review semantics: personal non-approval takes precedence;
+ * group-only requests disappear only when every relevant group approves.
+ * Missing group votes throw INCOMPLETE rather than inventing a review result.
+ */
 export function needsReview(pr: RawPr, userId: string, groups: Set<string>) {
 	const personal = pr.reviewers.find((reviewer) => reviewer.id === userId);
-	if (personal?.vote === 5 || personal?.vote === 10) return false;
-	if (personal) return true;
+	if (personal?.vote === 5 || personal?.vote === 10) {
+		return false;
+	}
+	if (personal) {
+		return true;
+	}
 	const relevant = pr.reviewers.filter(
 		(reviewer) =>
 			groups.has(reviewer.id) || (reviewer.descriptor && groups.has(reviewer.descriptor)),
 	);
-	if (relevant.some((reviewer) => reviewer.vote === undefined))
+	if (relevant.some((reviewer) => reviewer.vote === undefined)) {
 		throw new AppError('INCOMPLETE', 'A reviewer group vote is unavailable.', 502);
+	}
 	return (
 		relevant.length > 0 &&
 		!relevant.every((reviewer) => reviewer.vote === 5 || reviewer.vote === 10)
 	);
 }
 
+/** Owns scoped read-only synchronization, independent last-good caches, and reference validation. */
 export class Azure {
+	/** Configured repositories, initially fallback labels and later resolved display identities. */
 	repositories: Repository[] = initialRepositories;
 	private projects = new Map<string, { id: string; name: string }>();
 	private timer: ReturnType<typeof setTimeout> | undefined;
@@ -59,96 +71,24 @@ export class Azure {
 	private abort: AbortController | undefined;
 	private stopped = false;
 	private userId: string | undefined;
+	/** Retains injected dependencies without I/O; refresh starts work and stop ends scheduling. */
 	constructor(
 		private store: Store,
 		private config: Configuration,
 		private transport: typeof fetch = fetch,
 	) {}
+	/** True while a full refresh is active, including concurrent callers sharing that refresh. */
 	get running() {
 		return Boolean(this.active);
 	}
 	private settings() {
-		if (!this.config.ado)
+		if (!this.config.ado) {
 			throw new AppError('ADO_DISABLED', this.config.adoStatus.message, 503);
+		}
 		return this.config.ado;
 	}
-	private async request(
-		path: string,
-		options: { graph?: boolean; body?: unknown; signal?: AbortSignal } = {},
-	) {
-		const cfg = this.settings();
-		const url = new URL(
-			`https://${options.graph ? 'vssps.' : ''}dev.azure.com/${encodeURIComponent(cfg.org)}/${path}`,
-		);
-		if (!url.searchParams.has('api-version'))
-			url.searchParams.set('api-version', options.graph ? '7.1-preview.1' : '7.1');
-		for (let attempt = 0; attempt < 3; attempt++) {
-			let response: Response;
-			try {
-				response = await this.transport(url, {
-					method: options.body === undefined ? 'GET' : 'POST',
-					headers: {
-						Authorization: `Basic ${Buffer.from(`:${cfg.token}`).toString('base64')}`,
-						'Content-Type': 'application/json',
-					},
-					...(options.body === undefined ? {} : { body: JSON.stringify(options.body) }),
-					signal: AbortSignal.any([
-						AbortSignal.timeout(15000),
-						...(options.signal ? [options.signal] : []),
-					]),
-					redirect: 'error',
-					cache: 'no-store',
-				});
-			} catch {
-				throw new AppError(
-					'ADO_CONNECTION',
-					'Azure DevOps could not be reached. Check connectivity and retry.',
-					502,
-				);
-			}
-			if (response.ok) {
-				return {
-					data: object.parse(await response.json()),
-					continuation:
-						response.headers.get('x-ms-continuationtoken') ??
-						response.headers.get('x-ms-continuation-token'),
-				};
-			}
-			if ((response.status === 429 || response.status >= 500) && attempt < 2) {
-				const retry = response.headers.get('retry-after');
-				const seconds = retry
-					? /^\d+$/.test(retry)
-						? Number(retry)
-						: Math.max(0, (Date.parse(retry) - Date.now()) / 1000)
-					: attempt + 1;
-				if (!Number.isFinite(seconds) || seconds > 30)
-					throw new AppError(
-						'ADO_THROTTLED',
-						'Azure DevOps requested a longer retry delay. Cached data is retained.',
-						503,
-					);
-				await delay(seconds * 1000, undefined, { signal: options.signal }).catch(
-					(error: unknown) => {
-						if (options.signal?.aborted)
-							throw new AppError(
-								'CANCELLED',
-								'Azure DevOps refresh was cancelled.',
-								503,
-							);
-						throw error;
-					},
-				);
-				continue;
-			}
-			throw new AppError(
-				'ADO_HTTP',
-				response.status === 401 || response.status === 403
-					? 'Azure DevOps denied access. Check PAT expiry, Code/Work Items/Graph/Project and Team read scopes, and project permissions.'
-					: `Azure DevOps returned HTTP ${response.status}. The scope was not replaced.`,
-				502,
-			);
-		}
-		throw new AppError('ADO_RETRY', 'Azure DevOps retry budget exhausted.', 502);
+	private async request(path: string, options: AzureRequestOptions = {}) {
+		return requestAzure(this.settings(), path, options, this.transport);
 	}
 	private scopeKey(scope: string) {
 		return `${this.config.ado?.org.toLowerCase() ?? 'vertigis'}:${scope}`;
@@ -184,9 +124,12 @@ export class Azure {
 			.onConflictDoUpdate({ target: snapshots.scope, set: { error: safe.message } })
 			.run();
 	}
+	/** Reads configured last-good datasets locally, normalizing legacy work metadata and freshness. */
 	read(): Snapshot[] {
 		const cfg = this.config.ado;
-		if (!cfg) return [];
+		if (!cfg) {
+			return [];
+		}
 		const scopes = new Set([
 			...cfg.projects.map((project) => this.scopeKey(`work:${project}`)),
 			...cfg.repositoryIds.flatMap((id) => [
@@ -212,9 +155,12 @@ export class Azure {
 					Date.now() - Date.parse(row.successAt) > cfg.interval * 2000,
 			}));
 	}
+	/** Reads local team mappings, distinguishing never synchronized from a successful empty mapping. */
 	readBoards(): BoardScope[] {
 		const cfg = this.config.ado;
-		if (!cfg) return [];
+		if (!cfg) {
+			return [];
+		}
 		return cfg.projects.map((project) => {
 			const saved = meta(this.store, this.scopeKey(`boards:${project}`));
 			const scope = saved
@@ -236,8 +182,8 @@ export class Azure {
 	) {
 		const key = this.scopeKey(`boards:${configured}`);
 		try {
-			const boards: TeamBoard[] = [],
-				seen = new Set<string>();
+			const boards: TeamBoard[] = [];
+			const seen = new Set<string>();
 			for (let page = 0; page < 20; page++) {
 				const response = await this.request(
 					`_apis/projects/${project.id}/teams?$mine=true&$top=100&$skip=${page * 100}`,
@@ -246,15 +192,17 @@ export class Azure {
 				const teams = z
 					.array(z.object({ id: z.uuid(), name: z.string().min(1) }))
 					.parse(response.data.value);
-				if (response.continuation)
+				if (response.continuation) {
 					throw new AppError(
 						'INCOMPLETE',
 						'Team paging returned an unsupported continuation.',
 						502,
 					);
+				}
 				for (const team of teams) {
-					if (seen.has(team.id))
+					if (seen.has(team.id)) {
 						throw new AppError('INCOMPLETE', 'Team paging did not advance.', 502);
+					}
 					seen.add(team.id);
 					const settings = z
 						.object({
@@ -299,8 +247,8 @@ export class Azure {
 			}
 			throw new AppError('INCOMPLETE', 'Team paging reached its safety limit.', 502);
 		} catch (error) {
-			const safe = safeError(error),
-				saved = meta(this.store, key);
+			const safe = safeError(error);
+			const saved = meta(this.store, key);
 			log('ado.board_scopes_failed', 'error', { scope: key, code: safe.code });
 			const previous = saved
 				? boardScopeSchema.parse(JSON.parse(saved))
@@ -312,17 +260,25 @@ export class Azure {
 			);
 		}
 	}
-	/** Requests one full refresh; concurrent callers share its promise. */
+	/**
+	 * Coalesces concurrent refreshes under one 120s deadline, then schedules the next interval.
+	 * Scope failures retain last-good data with errors; disabled/stopped service calls throw.
+	 */
 	refresh() {
-		if (!this.config.ado || this.stopped)
+		if (!this.config.ado || this.stopped) {
 			throw new AppError('ADO_DISABLED', this.config.adoStatus.message, 503);
-		if (this.active) return this.active;
+		}
+		if (this.active) {
+			return this.active;
+		}
 		clearTimeout(this.timer);
 		this.abort = new AbortController();
 		this.active = this.sync(AbortSignal.any([this.abort.signal, AbortSignal.timeout(120000)]))
 			.catch((error: unknown) => {
 				const cfg = this.settings();
-				for (const project of cfg.projects) this.fail(`work:${project}`, 'work', error);
+				for (const project of cfg.projects) {
+					this.fail(`work:${project}`, 'work', error);
+				}
 				for (const id of cfg.repositoryIds) {
 					this.fail(`own:${id}`, 'own', error);
 					this.fail(`reviews:${id}`, 'reviews', error);
@@ -330,13 +286,15 @@ export class Azure {
 			})
 			.finally(() => {
 				this.active = undefined;
-				if (!this.stopped)
+				if (!this.stopped) {
 					this.timer = setTimeout(() => {
 						void this.refresh();
 					}, this.settings().interval * 1000);
+				}
 			});
 		return this.active;
 	}
+	/** Permanently stops scheduling, aborts current network work, and awaits its cache bookkeeping. */
 	async stop() {
 		this.stopped = true;
 		clearTimeout(this.timer);
@@ -365,36 +323,41 @@ export class Azure {
 						typeof email === 'string' &&
 						email.toLowerCase() === this.settings().email?.toLowerCase(),
 				)
-			)
+			) {
 				throw new AppError(
 					'IDENTITY_MISMATCH',
 					'The configured email does not match the PAT identity.',
 					502,
 				);
+			}
 		}
-		const queue = [descriptor],
-			visited = new Set<string>(),
-			groups = new Set<string>();
+		const queue = [descriptor];
+		const visited = new Set<string>();
+		const groups = new Set<string>();
 		while (queue.length) {
 			const subject = queue.shift();
-			if (!subject || visited.has(subject)) continue;
-			if (visited.size >= 2000)
+			if (!subject || visited.has(subject)) {
+				continue;
+			}
+			if (visited.size >= 2000) {
 				throw new AppError(
 					'INCOMPLETE',
 					'Group traversal reached its safety limit. Review data is incomplete.',
 					502,
 				);
+			}
 			visited.add(subject);
 			const response = await this.request(
 				`_apis/graph/memberships/${encodeURIComponent(subject)}?direction=up&depth=1`,
 				{ graph: true, signal },
 			);
-			if (response.continuation)
+			if (response.continuation) {
 				throw new AppError(
 					'INCOMPLETE',
 					'Graph returned an unsupported continuation. Group membership is incomplete.',
 					502,
 				);
+			}
 			for (const membership of collection.parse(response.data).value) {
 				const parent = z.string().parse(membership.containerDescriptor);
 				if (!groups.has(parent)) {
@@ -434,8 +397,9 @@ export class Azure {
 				.array(z.object({ id: z.number().int().positive() }))
 				.parse(result.data.workItems)
 				.map((item) => item.id);
-			if (ids.some((id, index) => id <= (index ? (ids[index - 1] ?? after) : after)))
+			if (ids.some((id, index) => id <= (index ? (ids[index - 1] ?? after) : after))) {
 				throw new AppError('INCOMPLETE', 'Work-item paging did not advance.', 502);
+			}
 			for (let offset = 0; offset < ids.length; offset += 200) {
 				const batch = ids.slice(offset, offset + 200);
 				const values = collection.parse(
@@ -446,15 +410,16 @@ export class Azure {
 						)
 					).data,
 				).value;
-				if (values.length !== batch.length)
+				if (values.length !== batch.length) {
 					throw new AppError(
 						'INCOMPLETE',
 						'Some assigned work items were not returned.',
 						502,
 					);
+				}
 				for (const value of values) {
-					const fields = object.parse(value.fields),
-						id = z.number().parse(value.id);
+					const fields = object.parse(value.fields);
+					const id = z.number().parse(value.id);
 					items.push({
 						id,
 						project,
@@ -478,7 +443,9 @@ export class Azure {
 					});
 				}
 			}
-			if (ids.length < 1000) return items;
+			if (ids.length < 1000) {
+				return items;
+			}
 			after = z.number().parse(ids.at(-1));
 		}
 		throw new AppError('INCOMPLETE', 'Work-item query reached its paging safety limit.', 502);
@@ -497,7 +464,9 @@ export class Azure {
 					).data.value,
 				);
 			result.push(...rows);
-			if (rows.length < 100) return result;
+			if (rows.length < 100) {
+				return result;
+			}
 		}
 		throw new AppError('INCOMPLETE', 'PR paging reached its safety limit.', 502);
 	}
@@ -514,13 +483,16 @@ export class Azure {
 				).data,
 			);
 		this.userId = connected.authenticatedUser.id;
-		let groupIds: Set<string> | undefined, groupError: unknown;
+		let groupIds: Set<string> | undefined;
+		let groupError: unknown;
 		try {
 			groupIds = await this.groups(signal);
 		} catch (error) {
 			groupError = error;
 		}
-		if (cfg.email && groupError) throw groupError;
+		if (cfg.email && groupError) {
+			throw groupError;
+		}
 		const boardProjects: { configured: string; project: { id: string; name: string } }[] = [];
 		for (const configured of cfg.projects) {
 			try {
@@ -552,12 +524,13 @@ export class Azure {
 				if (
 					repo.isDisabled ||
 					![...this.projects.values()].some((project) => project.id === repo.project.id)
-				)
+				) {
 					throw new AppError(
 						'SCOPE',
 						'Selected repository is disabled, inaccessible, or outside configured projects.',
 						502,
 					);
+				}
 				const normalized = { id, name: repo.name, project: repo.project.name };
 				repositories.push(normalized);
 				const rows = await this.pullRequests(normalized, signal);
@@ -593,7 +566,9 @@ export class Azure {
 					rows.filter((pr) => pr.createdBy.id === this.userId).map(convert),
 				);
 				try {
-					if (!groupIds) throw groupError;
+					if (!groupIds) {
+						throw groupError;
+					}
 					this.save(
 						`reviews:${id}`,
 						'reviews',
@@ -612,17 +587,24 @@ export class Azure {
 			}
 		}
 		this.repositories = repositories;
-		for (const { configured, project } of boardProjects)
+		for (const { configured, project } of boardProjects) {
 			await this.syncBoards(configured, project, signal);
+		}
 	}
+	/**
+	 * Checks identity against the configured scope without network access.
+	 * Disabled integrations permit the initial offline scope; invalid configuration/scope throws.
+	 */
 	validate(reference: Reference) {
 		if (
 			reference.organization.toLowerCase() !==
 			(this.config.ado?.org ?? 'vertigis').toLowerCase()
-		)
+		) {
 			throw new AppError('SCOPE', 'The reference is outside the configured organization.');
-		if (this.config.adoStatus.state === 'configuration_error')
+		}
+		if (this.config.adoStatus.state === 'configuration_error') {
 			throw new AppError('ADO_CONFIG', this.config.adoStatus.message, 503);
+		}
 		const cfg = this.config.ado ?? {
 			projects: ['Utilities'],
 			repositoryIds: initialRepositories.map((repo) => repo.id),
@@ -634,11 +616,17 @@ export class Azure {
 					this.projects.get(project)?.name.toLowerCase() ===
 						reference.project.toLowerCase(),
 			)
-		)
+		) {
 			throw new AppError('SCOPE', 'The reference is outside the configured projects.');
-		if (reference.kind === 'pullRequest' && !cfg.repositoryIds.includes(reference.repositoryId))
+		}
+		if (
+			reference.kind === 'pullRequest' &&
+			!cfg.repositoryIds.includes(reference.repositoryId)
+		) {
 			throw new AppError('SCOPE', 'The PR repository is not allowlisted.');
+		}
 	}
+	/** Parses scoped HTTPS work/PR links without fetching them; rejects credentials and unknown scope. */
 	parseUrl(input: string): Reference {
 		let url: URL;
 		let segments: string[];
@@ -657,15 +645,16 @@ export class Azure {
 			url.password ||
 			org !== (this.config.ado?.org ?? 'vertigis') ||
 			!project
-		)
+		) {
 			throw new AppError(
 				'SCOPE',
 				'Use an HTTPS Azure DevOps URL in the configured organization.',
 			);
+		}
 		let reference: Reference;
-		if (area === '_workitems' && object === 'edit' && action && /^\d+$/.test(action))
+		if (area === '_workitems' && object === 'edit' && action && /^\d+$/.test(action)) {
 			reference = { kind: 'workItem', organization: org, project, id: Number(action) };
-		else if (
+		} else if (
 			area === '_git' &&
 			action?.toLowerCase() === 'pullrequest' &&
 			id &&
@@ -674,11 +663,12 @@ export class Azure {
 			const repo = this.repositories.find(
 				(repo) => repo.id === object || repo.name.toLowerCase() === object?.toLowerCase(),
 			);
-			if (!repo || repo.project.toLowerCase() !== project.toLowerCase())
+			if (!repo || repo.project.toLowerCase() !== project.toLowerCase()) {
 				throw new AppError(
 					'SCOPE',
 					'The PR repository is not selected or has not been resolved yet.',
 				);
+			}
 			reference = {
 				kind: 'pullRequest',
 				organization: org,
@@ -686,13 +676,21 @@ export class Azure {
 				repositoryId: repo.id,
 				id: Number(id),
 			};
-		} else throw new AppError('REFERENCE', 'Use a work-item edit URL or a pull-request URL.');
+		} else {
+			throw new AppError('REFERENCE', 'Use a work-item edit URL or a pull-request URL.');
+		}
 		this.validate(reference);
 		return referenceSchema.parse(reference);
 	}
+	/** Formats an identity as a canonical link without validating scope or current availability. */
 	url(reference: Reference) {
 		return referenceUrl(reference);
 	}
+	/**
+	 * Fetches and verifies selected fields/discussions, never source code or diffs.
+	 * Returns serialized context capped at 24,000 characters with explicit truncation;
+	 * invalid scope, unavailable objects, malformed responses, and paging limits throw.
+	 */
 	async detail(reference: Reference, signal: AbortSignal) {
 		this.validate(reference);
 		const project = encodeURIComponent(reference.project);
@@ -771,20 +769,23 @@ export class Azure {
 		const expected = this.projects.get(reference.project)?.name ?? reference.project;
 		if (reference.kind === 'workItem') {
 			const fields = object.parse(data.fields);
-			if (fields['System.TeamProject'] !== expected)
+			if (fields['System.TeamProject'] !== expected) {
 				throw new AppError('SCOPE', 'The work item belongs to another project.', 403);
+			}
 		} else {
 			const repo = z
 				.object({ id: z.string(), project: z.object({ name: z.string() }) })
 				.parse(data.repository);
-			if (repo.id !== reference.repositoryId || repo.project.name !== expected)
+			if (repo.id !== reference.repositoryId || repo.project.name !== expected) {
 				throw new AppError(
 					'SCOPE',
 					'The PR belongs to another repository or project.',
 					403,
 				);
+			}
 		}
 	}
+	/** Fetches the object to verify current access and actual scope, returning a UTC check timestamp. */
 	async verify(reference: Reference, signal: AbortSignal) {
 		this.validate(reference);
 		const path =

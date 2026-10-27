@@ -1,3 +1,4 @@
+/** Repository formatting, including stable Tailwind utility ordering. */
 export default {
 	useTabs: true,
 	tabWidth: 4,
