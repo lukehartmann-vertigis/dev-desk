@@ -6,6 +6,12 @@ The [application report](verification/application.md) separates verified local
 behavior from outstanding account-specific live acceptance. The earlier
 [G0 report](verification/g0.md) remains historical compatibility evidence.
 
+Planned, not implemented: [Azure DevOps settings](requirements/settings.md) and
+[ADR-0015](adr/0015-persisted-azure-devops-settings.md) propose persistent,
+application-wide source selection with organization-wide discovery and an empty
+initial scope. The architecture and environment variables below describe the
+current application, not that proposed increment.
+
 ## 1. Shape and boundaries
 
 A modular Next.js monolith runs on the Node.js runtime in one application

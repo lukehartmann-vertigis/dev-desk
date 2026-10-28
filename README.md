@@ -150,6 +150,9 @@ normal workspace. It defaults to `http://127.0.0.1:3000`.
 
 - [Architecture](docs/architecture.md): modules, persistence, and integration boundaries.
 - [Requirements](docs/requirements/REQUIREMENTS.md): todo, Azure DevOps, assistant, and UX contracts.
+- [Settings proposal](docs/requirements/settings.md): persisted Azure DevOps source
+  selection and [ADR-0015](docs/adr/0015-persisted-azure-devops-settings.md);
+  documentation for review, not an implemented feature.
 - [Code style](docs/code-style.md): conventions and contribution checks.
 - [Verification](docs/verification/application.md): completed checks and remaining live-account limits.
 - [Design preview](clickdummy.html): standalone interactive demo, not the running app.

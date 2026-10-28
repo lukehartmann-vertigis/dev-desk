@@ -18,6 +18,7 @@
 | [0012](0012-informational-legends-and-team-scopes.md) | Informational legends and team-board area-scope annotations without display filters | Accepted; local-display prohibition superseded by [0014](0014-local-scope-chips-and-tool-outcomes.md) |
 | [0013](0013-safe-markdown-and-todo-drag-handles.md) | Safe assistant Markdown and accessible persistent todo drag handles | Accepted for the requested frontend enhancement |
 | [0014](0014-local-scope-chips-and-tool-outcomes.md) | Single-select in-tab scope chips and compact literal tool disclosures | Accepted by explicit user instruction |
+| [0015](0015-persisted-azure-devops-settings.md) | Persisted application-wide Azure DevOps source selection with organization-wide discovery and an empty initial scope | Accepted product concept; technical contracts proposed, implementation not authorized |
 
 ## Status policy
 
@@ -35,6 +36,9 @@ passing tests. ADR-0004's lifecycle condition was subsequently met by the
 integration and AI policy evidence is still outstanding.
 The user's subsequent [ADR-0011](0011-integrated-delivery-and-verification.md)
 explicitly authorizes feature implementation without claiming G0 has passed.
+The later settings discussion explicitly requests documentation before
+implementation. [ADR-0015](0015-persisted-azure-devops-settings.md) records that
+increment without treating ADR-0011 as authorization to implement it now.
 
 New decisions use the next number and contain date, status, context, decision,
 alternatives, consequences, and verification links. Do not silently revise

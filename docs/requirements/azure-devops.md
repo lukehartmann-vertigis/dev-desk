@@ -8,6 +8,12 @@ unverified live. The real adapter and offline contracts are implemented; see the
 [application report](../verification/application.md). ADR-0011 removes the
 up-front G0 blocker, not these acceptance obligations.
 
+The [proposed settings increment](settings.md) changes the source-selection
+contracts in ADO-001/ADO-003 and the effective scope for ADO-011 when approved
+and delivered. It is not implemented. Review/group semantics and read-only
+access remain unchanged; the baseline contracts below describe the current
+release.
+
 ## ADO-001 — Connection scope
 
 The application MUST connect to one Azure DevOps Services organization and an

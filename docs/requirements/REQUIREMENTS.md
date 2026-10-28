@@ -21,6 +21,21 @@ the integration allowlist or assigned-work selection; see
 This replaces the incomplete initial overview, whose MVP section was unfinished.
 The supplied read-only attachment remains unchanged.
 
+### Settings increment: approved concept, proposed contracts
+
+On 2026-10-28 the user confirmed persistent, application-wide Azure DevOps board
+and repository selection, discovery across all PAT-accessible projects in one
+organization, independently empty selections, and an empty start without legacy
+scope import. The user then approved all accessible team-board candidates and
+project grouping without a separate project picker. See
+[settings requirements](settings.md) and
+[ADR-0015](../adr/0015-persisted-azure-devops-settings.md).
+
+Those documents distinguish the approved product concept from detailed contracts
+still proposed for review. The user requested documentation first, not implementation.
+The baseline tables below describe the existing release; its fixed scope and
+navigation rules are not silently replaced or claimed implemented here.
+
 ## 1. Product goal
 
 Provide a lightweight, locally hosted, single-user developer workspace. The
@@ -160,6 +175,9 @@ running. It does not promise a usable UI when the local application is stopped.
 - Accepted ADRs record confirmed choices. Proposed ADRs are not implementation
   authorization.
 - Acceptance scenarios are specifications, not evidence of tests already passing.
+- Separately labelled proposed increments do not change baseline v1 acceptance
+  or authorize implementation. Their `MUST` statements are draft acceptance
+  contracts until reviewed for that increment.
 
 ## 5. Requirement index
 
@@ -170,6 +188,7 @@ running. It does not promise a usable UI when the local application is stopped.
 | AI-001 through AI-013 | [Assistant](assistant.md) |
 | UX-001 through UX-008 | [Experience](experience-and-operations.md#experience) |
 | OPS-001 through OPS-010 | [Operations and quality](experience-and-operations.md#operations-and-quality); OPS-006 is deferred |
+| SET-001 through SET-011 | [Azure DevOps settings](settings.md); proposed increment, not implemented |
 
 ## 6. Approved defaults and deferred work
 
@@ -202,6 +221,7 @@ No performance reference environment is required.
 | OPEN-06 | Record performance reference hardware and benchmark fixture | Deferred with OPS-006 by user decision; not a P0, G0, or MVP release gate |
 | OPEN-07 | Repository selection and project/board/repo filter policy | Resolved: Utilities; network-locator and Utilities allowlist; informational repository/team-board legends instead of display filters; project-wide assigned work items |
 | OPEN-08 | Verify complete group membership, nested/directory-group limitations, identity mapping, and read permissions | Product semantics and offline nested/cycle handling covered; actual account Graph visibility and reviewer parity remain live acceptance |
+| OPEN-09 | Review the settings increment's detailed contracts and authorize implementation | Product concept approved on 2026-10-28, including accessible teams and project grouping; detailed SET/ADR contracts remain proposed; no implementation authorized |
 
 No secrets, real work-item content, or chat transcripts belong in this
 documentation. Integration experiments must use approved test data.

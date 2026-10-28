@@ -5,6 +5,12 @@ All active behavior and acceptance contracts below are approved in baseline v1.
 OPS-006 is explicitly deferred and does not gate MVP acceptance. Approval is not
 evidence that the UI, deployment, or tests already exist.
 
+The [proposed settings increment](settings.md) adds Settings navigation and
+SQLite-backed source selection, with empty initial scope instead of environment
+defaults. Credentials remain server-side; persisted settings join the existing
+backup boundary. It is not implemented and does not change the baseline
+descriptions below.
+
 ## Experience
 
 ### UX-001 — Dashboard hierarchy
