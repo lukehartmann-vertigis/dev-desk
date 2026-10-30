@@ -5,6 +5,13 @@ Date: 2026-10-26
 Status: scoped metadata exploration completed; product scope and approval rules
 confirmed. Runtime permissions and complete group resolution remain unverified.
 
+Historical scope note: the original workspace/defaults and project-wide work
+query described below are superseded by the implemented
+[Settings increment](requirements/settings.md) and
+[ADR-0015](adr/0015-persisted-azure-devops-settings.md). Sources now start empty
+and are explicitly selected in SQLite; this exploration remains historical
+metadata evidence, not current source configuration or live PAT certification.
+
 ## 1. What the entities mean
 
 ```text

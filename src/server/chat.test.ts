@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { SessionConfig, Tool } from '@github/copilot-sdk';
+import type { CopilotClientOptions, SessionConfig, Tool } from '@github/copilot-sdk';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -16,6 +16,7 @@ const fake = vi.hoisted(() => ({
 	intent: 'read',
 	execute: undefined as ((tools: Tool[]) => Promise<void>) | undefined,
 	configs: [] as SessionConfig[],
+	clients: [] as { options: CopilotClientOptions; stopped: boolean }[],
 	ids: new Set<string>(),
 	deleteFails: false,
 	abortCount: 0,
@@ -70,8 +71,14 @@ vi.mock('@github/copilot-sdk', () => {
 	return {
 		defineTool: (name: string, definition: object) => ({ name, ...definition }),
 		CopilotClient: class {
+			private state;
+			constructor(options: CopilotClientOptions) {
+				this.state = { options, stopped: false };
+				fake.clients.push(this.state);
+			}
 			async start() {}
 			async stop() {
+				this.state.stopped = true;
 				return [];
 			}
 			async forceStop() {}
@@ -113,6 +120,7 @@ beforeEach(() => {
 	fake.intent = 'read';
 	fake.execute = undefined;
 	fake.configs = [];
+	fake.clients = [];
 	fake.ids.clear();
 	fake.deleteFails = false;
 	fake.abortCount = 0;
@@ -147,13 +155,42 @@ function run(signal = new AbortController().signal) {
 
 describe('bounded durable Copilot integration', () => {
 	it('reads cached work and team-board scopes together without an upstream request', async () => {
+		let result: unknown;
 		fake.execute = async (tools) => {
-			expect(await call(tools, 'read_dashboard', {})).toEqual({
-				ok: true,
-				result: { snapshots: [], boardScopes: [] },
+			result = await call(tools, 'read_dashboard', {});
+		};
+		await run();
+		expect(result).toEqual({
+			ok: true,
+			result: {
+				incomplete: false,
+				content: {
+					snapshots: [],
+					boardScopes: [],
+					repositories: [],
+					selection: { revision: 0, boards: 0, repositories: 0 },
+				},
+			},
+		});
+	});
+	it('SET-007 rejects a new AI todo reference outside the selected scope without writing', async () => {
+		fake.intent = 'mutate';
+		let result: unknown;
+		fake.execute = async (tools) => {
+			result = await call(tools, 'mutate_todo', {
+				operation: 'create',
+				title: 'Must not be created',
+				reference: {
+					kind: 'workItem',
+					organization: 'vertigis',
+					project: 'Utilities',
+					id: 7,
+				},
 			});
 		};
 		await run();
+		expect(result).toMatchObject({ ok: false, code: 'SCOPE' });
+		expect(readTodos(store).items).toEqual([]);
 	});
 	it.each(['classifier', 'conversation'] as const)(
 		'OPS-007 logs the failing %s phase without upstream content',
@@ -353,6 +390,29 @@ describe('bounded durable Copilot integration', () => {
 		expect(chat.read()).toEqual([]);
 		expect(fake.ids.size).toBe(0);
 	});
+	it.each([false, true])(
+		'AI-013 starts an authenticated client after clearing (cleanup retry: %s)',
+		async (retry) => {
+			await run();
+			if (retry) {
+				fake.deleteFails = true;
+				await expect(chat.clear()).rejects.toThrow('incomplete');
+				fake.deleteFails = false;
+			}
+			await chat.clear();
+			const cleanupClient = fake.clients.at(-1);
+			expect(cleanupClient?.options.gitHubToken).toBeUndefined();
+			expect(cleanupClient?.stopped).toBe(true);
+
+			await run();
+			expect(fake.clients.at(-1)).not.toBe(cleanupClient);
+			expect(fake.clients.at(-1)?.options.gitHubToken).toBe('synthetic-token-not-real');
+			expect(chat.read().find((message) => message.role === 'assistant')).toMatchObject({
+				content: 'Synthetic answer.',
+				status: 'complete',
+			});
+		},
+	);
 	it('AI-011 cancels active work, preserves committed writes and prevents future dispatch', async () => {
 		fake.intent = 'mutate';
 		fake.block = true;

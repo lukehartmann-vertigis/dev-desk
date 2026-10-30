@@ -12,10 +12,14 @@ export {
 } from './contracts/todos';
 export {
 	boardScopeSchema,
+	swimlaneScopeSchema,
 	matchesBoardArea,
 	teamBoardSchema,
 	workSchema,
+	prViewSchema,
 	type BoardScope,
+	type BoardSwimlanes,
+	type SwimlaneScope,
 	type PullRequest,
 	type Repository,
 	type Reviewer,
@@ -29,3 +33,13 @@ export {
 	type DashboardState,
 	type IntegrationStatus,
 } from './contracts/dashboard';
+export {
+	saveSettingsSchema,
+	settingsSchema,
+	settingsResponseSchema,
+	sourceCatalogSchema,
+	type SaveSettings,
+	type Source,
+	type SourceCatalog,
+	type SourceSettings,
+} from './contracts/settings';

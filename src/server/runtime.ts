@@ -20,11 +20,16 @@ export function createRuntime() {
 		todos: readTodos(store),
 		ado: {
 			...config.adoStatus,
-			organization: config.ado?.org ?? 'vertigis',
+			organization: config.adoOrganization,
 			running: azure.running,
 			snapshots: azure.read(),
 			repositories: azure.repositories,
 			boardScopes: azure.readBoards(),
+			selection: {
+				revision: azure.selection.revision,
+				boards: azure.selection.boards.length,
+				repositories: azure.selection.repositories.length,
+			},
 		},
 		copilot: {
 			...config.copilotStatus,
@@ -41,6 +46,12 @@ export function createRuntime() {
 		azure,
 		chat,
 		state,
+		/** Reads saved source identities and safe connection feedback without upstream access. */
+		sourceSettings: () => ({
+			settings: azure.selection,
+			connection: config.adoStatus,
+			warnings: config.adoWarnings,
+		}),
 		/** True once shutdown starts, including after its promise settles. */
 		get stopping() {
 			return Boolean(stopping);

@@ -1,9 +1,9 @@
 import { z } from 'zod';
-import { mutationSchema, referenceSchema } from '../../../lib/contracts';
+import { mutationSchema, referenceSchema, saveSettingsSchema } from '../../../lib/contracts';
 import { AppError } from '../../../server/errors';
 import { body, failure, json, protect } from '../../../server/http';
 import { runtime as application } from '../../../server/runtime';
-import { approveDeletion, mutateTodo } from '../../../server/todos';
+import { approveDeletion, mutateTodoWithReference } from '../../../server/todos';
 import { chatResponse } from '../../../server/chat-response';
 
 /** Native SQLite and the managed SDK require the Node.js route runtime. */
@@ -19,6 +19,9 @@ async function handle(request: Request, context: { params: Promise<{ path: strin
 		if (request.method === 'GET') {
 			if (path === 'state') {
 				return json(app.state());
+			}
+			if (path === 'settings') {
+				return json(app.sourceSettings());
 			}
 			if (path === 'health') {
 				app.store.sqlite.prepare('SELECT 1').get();
@@ -36,9 +39,20 @@ async function handle(request: Request, context: { params: Promise<{ path: strin
 			if (app.stopping) {
 				throw new AppError('STOPPING', 'The application is shutting down.', 503);
 			}
+			if (path === 'settings/catalog') {
+				z.object({}).parse(input);
+				return json(await app.azure.discover(request.signal));
+			}
+			if (path === 'settings') {
+				await app.azure.saveSelection(saveSettingsSchema.parse(input), request.signal);
+				return json(app.sourceSettings());
+			}
 			if (path === 'todos') {
-				mutateTodo(app.store, mutationSchema.parse(input), (reference) =>
-					app.azure.validate(reference),
+				await mutateTodoWithReference(
+					app.store,
+					mutationSchema.parse(input),
+					app.azure,
+					request.signal,
 				);
 				return json(app.state());
 			}

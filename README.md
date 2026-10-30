@@ -20,6 +20,9 @@ Screenshots show the application with synthetic data.
   pull requests. No daily resets or automatic expiry.
 - **Azure DevOps overview:** assigned work items, review requests, and your pull
   requests, with team/repository filters, review votes, and background refresh.
+- **Source settings:** choose readable team-area scopes and repositories across
+  your organization's projects. The saved selection governs sync, current
+  dashboard data, and new assistant retrievals.
 - **Copilot assistant:** ask about your work or request todo changes. Replies
   support Markdown; deletion requires separate confirmation.
 
@@ -48,7 +51,9 @@ external database, or MCP server is needed.
     docker compose up -d --build --wait
     ```
 
-4. Open **http://localhost:3000**.
+4. Open **http://localhost:3000**, then **Settings** to select **Work Item Sources**
+   and **Repositories**. Save explicitly; both lists start empty, including after
+   an upgrade. Either list may stay empty. Local todos work without any sources.
 
 ## Configuration
 
@@ -57,9 +62,10 @@ external database, or MCP server is needed.
 | `AZURE_DEVOPS_PAT`     | PAT with read-only **Code**, **Work Items**, **Graph**, and **Project and Team** permissions for your organization and selected scopes.                                      |
 | `COPILOT_GITHUB_TOKEN` | Fine-grained personal GitHub PAT with the account permission **Copilot Requests**. Requires Copilot/model access and available usage. Classic `ghp_` PATs are not supported. |
 
-The shipped defaults target a specific workspace. For your own, set
-`AZURE_DEVOPS_ORG`, `AZURE_DEVOPS_PROJECTS`, and `AZURE_DEVOPS_REPOSITORY_IDS`.
-See [.env.example](.env.example) for settings and scope IDs. The default Copilot
+Set `AZURE_DEVOPS_ORG` for your organization; the connection default is `vertigis`.
+Sources are selected only in Settings, never imported from environment defaults.
+`AZURE_DEVOPS_PROJECTS` and `AZURE_DEVOPS_REPOSITORY_IDS` are deprecated, ignored,
+and reported in Settings. See [.env.example](.env.example). The default Copilot
 model is `gpt-4.1`; Azure DevOps refreshes at startup and 180 seconds after each
 cycle completes. Both are configurable; there is no silent model fallback.
 
@@ -77,6 +83,14 @@ docker compose up -d --force-recreate --wait
 
 ## Usage
 
+- **Settings:** search the project-grouped Work Item Sources and Repositories
+  lists, select checkboxes, and Save. Cancel restores the saved selection.
+  Work Item Sources include all readable teams, not just your memberships, and
+  show **your assigned items in selected team areas**, not an exact Kanban board.
+  Projects only group choices; there is no separate project picker. Selection is
+  stored in SQLite per organization and applies immediately without restart.
+  Unavailable saved sources remain visible and removable. A conflict requires
+  reloading the saved selection before retrying.
 - **Todos:** enter a title, then edit, complete/reopen, or delete with confirmation.
   Drag a grip to reorder, or use Up/Down. Keyboard sorting: Space to pick up/drop,
   arrows to move, Escape to cancel. Completed tasks stay in a collapsed section.
@@ -96,7 +110,7 @@ docker compose up -d --force-recreate --wait
 ## Data, Privacy & Limitations
 
 - Todos, cached Azure DevOps data, and chat state are stored in the local
-  `devdesk-data` Docker volume. Host permissions protect access; data is not
+  `devdesk-data` Docker volume, together with source settings. Host permissions protect access; data is not
   encrypted by the app. **Do not use `docker compose down -v` unless you intend
   to delete that data.**
 - Requested todo and Azure DevOps context is sent to GitHub Copilot under your
@@ -104,6 +118,9 @@ docker compose up -d --force-recreate --wait
   or backups.
 - Azure DevOps access is read-only. The assistant has scoped application tools,
   not general shell, filesystem, browsing, or MCP access.
+- Deselecting sources hides their current cache data and blocks new detail and
+  reference reads. It does not delete todos, historical links, conversation
+  history, or already supplied provider context.
 - Keep tokens in `.env`, never in source code or chat. Do not share resolved
   Compose configuration; it can contain credentials.
 - This is a **single-user, local-only app without a login**. Keep the loopback
@@ -150,9 +167,8 @@ normal workspace. It defaults to `http://127.0.0.1:3000`.
 
 - [Architecture](docs/architecture.md): modules, persistence, and integration boundaries.
 - [Requirements](docs/requirements/REQUIREMENTS.md): todo, Azure DevOps, assistant, and UX contracts.
-- [Settings proposal](docs/requirements/settings.md): persisted Azure DevOps source
-  selection and [ADR-0015](docs/adr/0015-persisted-azure-devops-settings.md);
-  documentation for review, not an implemented feature.
+- [Settings requirements](docs/requirements/settings.md): persisted Azure DevOps source
+  selection and [ADR-0015](docs/adr/0015-persisted-azure-devops-settings.md).
 - [Code style](docs/code-style.md): conventions and contribution checks.
 - [Verification](docs/verification/application.md): completed checks and remaining live-account limits.
 - [Design preview](clickdummy.html): standalone interactive demo, not the running app.

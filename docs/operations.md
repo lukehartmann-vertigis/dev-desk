@@ -17,21 +17,45 @@ Health reports local storage readiness and integration configuration separately.
 Check the dashboard for integration errors and stale timestamps. Sync failures
 retain the last successfully cached data; local todos remain available.
 
-- **Azure DevOps:** check PAT expiry, organization, selected project/repository
-  scopes, and read permissions. Missing Graph access degrades review requests.
+- **Azure DevOps:** check PAT expiry, organization, saved Work Item Sources and
+  Repositories in Settings, and read permissions. Missing Graph access degrades
+  review requests. An empty selection intentionally produces no data.
 - **Copilot:** check token type, Copilot Requests permission, model access, usage,
   and organization policies. Host VS Code/CLI credentials are not used.
 - **Configuration changes:** run `docker compose up -d --force-recreate --wait`.
   A restart alone does not reload the Compose environment.
 - **Incomplete chat cleanup:** use Clear to retry. New runs remain blocked until
-  cleanup completes; todos are not deleted.
+  cleanup completes; todos are not deleted. The credential-free cleanup runtime
+  is stopped before chat resumes; the next request starts a new SDK client with
+  the configured Copilot token.
 
 Do not share `.env`, resolved Compose configuration, database files, SDK state,
 or backup archives. Review logs before sharing them.
 
+## Source Settings
+
+New and upgraded installations start with both source lists empty. Open
+**Settings**, select team-area Work Item Sources and Repositories, then Save.
+Existing `AZURE_DEVOPS_PROJECTS` and `AZURE_DEVOPS_REPOSITORY_IDS` values are
+deprecated and ignored; they do not restore the old scope. Existing cache rows
+remain on disk but cannot enable unselected sources.
+
+Selections are stored in SQLite per normalized organization, not in `.env` or
+browser storage. They survive container recreation with the same data volume.
+Changing organization starts with that organization's saved selection or an
+empty scope; changing PAT does not erase choices. Access errors remain explicit.
+Discovery lists metadata across readable projects, including non-member teams;
+it does not fetch every candidate's content or automatically select sources.
+
+Save applies without restart. Another tab's stale revision produces a conflict:
+reload its saved selection and review changes before retrying. Failed discovery
+does not clear choices; unavailable saved sources can still be removed offline.
+Selections affect current integration reads and new reference checks, not local
+todos, unchanged historical references, or stored chat.
+
 ## Backup and Restore
 
-The `devdesk-data` volume contains SQLite, journal files, and SDK context. Stop
+The `devdesk-data` volume contains SQLite (including source settings), journal files, and SDK context. Stop
 the app and copy the **entire volume**, not only an open database file.
 
 ```sh
@@ -61,7 +85,8 @@ Stop and separately back up any existing installation first. Do not extract into
 a non-empty live volume: old WAL/SDK files can invalidate the restored state.
 Set `backup` to the archive path if using a new shell. Restore with the same app
 version first, then upgrade normally. Check todos, stored chat, and, with a valid
-token, conversation continuation after restore.
+token, conversation continuation after restore. Check both saved source lists in
+Settings as well.
 
 App data and backups rely on host permissions, not application-level encryption.
 Do not use `docker compose down -v` for a restart or upgrade: it removes the data

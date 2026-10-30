@@ -10,7 +10,7 @@ import type { Configuration } from './config';
 import { AppError, log, safeError } from './errors';
 import { approvals, messages, metadata, runs } from './schema';
 import { meta, setMeta, type Store } from './store';
-import { mutateTodo, readTodos } from './todos';
+import { mutateTodoWithReference, readTodos } from './todos';
 import {
 	azureDetailInputSchema,
 	intentSchema,
@@ -237,6 +237,12 @@ export class Chat {
 					bounded({
 						snapshots: this.azure.read(),
 						boardScopes: this.azure.readBoards(),
+						repositories: this.azure.repositories,
+						selection: {
+							revision: this.azure.selection.revision,
+							boards: this.azure.selection.boards.length,
+							repositories: this.azure.selection.repositories.length,
+						},
 					}),
 			),
 			register(
@@ -252,7 +258,7 @@ export class Chat {
 					'mutate_todo',
 					'Create, edit, complete, reopen or reorder local todos. Provide current revisions. No deletion.',
 					toolInput,
-					(args, requestId) => {
+					async (args, requestId) => {
 						this.guard(run);
 						const existing = readTodos(this.store).items.find(
 							(todo) => todo.id === args.id,
@@ -272,8 +278,12 @@ export class Chat {
 									}
 								: {}),
 						});
-						const result = mutateTodo(this.store, command, (reference) =>
-							this.azure.validate(reference),
+						const result = await mutateTodoWithReference(
+							this.store,
+							command,
+							this.azure,
+							run.controller.signal,
+							() => this.guard(run),
 						);
 						return { committed: true, ...result, current: readTodos(this.store) };
 					},
@@ -617,6 +627,7 @@ export class Chat {
 						503,
 					);
 				}
+				await this.stopClient();
 			}
 			this.store.db.transaction(() => {
 				this.store.db.delete(approvals).run();

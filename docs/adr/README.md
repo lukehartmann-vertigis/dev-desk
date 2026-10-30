@@ -18,7 +18,7 @@
 | [0012](0012-informational-legends-and-team-scopes.md) | Informational legends and team-board area-scope annotations without display filters | Accepted; local-display prohibition superseded by [0014](0014-local-scope-chips-and-tool-outcomes.md) |
 | [0013](0013-safe-markdown-and-todo-drag-handles.md) | Safe assistant Markdown and accessible persistent todo drag handles | Accepted for the requested frontend enhancement |
 | [0014](0014-local-scope-chips-and-tool-outcomes.md) | Single-select in-tab scope chips and compact literal tool disclosures | Accepted by explicit user instruction |
-| [0015](0015-persisted-azure-devops-settings.md) | Persisted application-wide Azure DevOps source selection with organization-wide discovery and an empty initial scope | Accepted product concept; technical contracts proposed, implementation not authorized |
+| [0015](0015-persisted-azure-devops-settings.md) | Persisted application-wide Azure DevOps source selection with organization-wide discovery and an empty initial scope | Accepted; implemented, live account discovery not certified |
 
 ## Status policy
 

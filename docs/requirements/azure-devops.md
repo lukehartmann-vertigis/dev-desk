@@ -8,24 +8,21 @@ unverified live. The real adapter and offline contracts are implemented; see the
 [application report](../verification/application.md). ADR-0011 removes the
 up-front G0 blocker, not these acceptance obligations.
 
-The [proposed settings increment](settings.md) changes the source-selection
-contracts in ADO-001/ADO-003 and the effective scope for ADO-011 when approved
-and delivered. It is not implemented. Review/group semantics and read-only
-access remain unchanged; the baseline contracts below describe the current
-release.
+The implemented [settings increment](settings.md) replaces environment-owned
+scope in ADO-001/ADO-003 and supplies the effective scope for ADO-011.
+Review/group semantics and read-only access remain unchanged.
 
 ## ADO-001 — Connection scope
 
 The application MUST connect to one Azure DevOps Services organization and an
-explicit, non-empty set of projects using a server-side PAT.
+explicit source selection using a server-side PAT.
 
 Acceptance:
 - Two projects and selected repositories can be synchronized.
-- Only configured projects and explicitly allowlisted repositories are queried.
+- Only selected team areas and explicitly selected repositories contribute content.
   Newly discovered repositories are not automatically added to PR synchronization.
-- The initial workspace selects project Utilities and repositories network-locator
-  and Utilities. This does not remove general multi-project support.
-- An empty allowlist is a configuration error, not shorthand for all repositories.
+- New and upgraded installations start empty; no legacy scope is imported.
+- Either source list may be empty; empty never means all.
   A disabled or inaccessible selected repository produces an explicit scope error.
 - PAT permissions are read-only and least-privilege; no token reaches the browser.
 - Azure DevOps Server and multiple organizations are not supported in the MVP.
@@ -44,26 +41,39 @@ Acceptance:
 
 ## ADO-003 — Assigned work items
 
-The dashboard MUST show work items assigned to the current user across configured
-projects, independently of work-item type.
+The dashboard MUST show work items assigned to the current user within selected
+team-board area scopes, independently of work-item type.
 
 Acceptance:
 - Each row shows ID, title, type, state, priority, project, and an external link.
 - Custom types and states are retained. Missing priority is displayed as
   unavailable, never invented.
 - The MVP does not silently exclude terminal states based on guessed state names.
-- Team membership, board/area paths, and repository selection do not restrict the
-  assigned work-item query.
-- Fetch the authenticated user's teams (`$mine=true`) within configured projects
-  and each team's `System.AreaPath` field-values with `includeChildren`.
+- Team membership and repository selection do not restrict candidate board
+  selection. The selected boards' area union restricts assigned work.
+- Discover all readable teams (`$mine=false`), not only the user's memberships.
+  Resolve selected teams' `System.AreaPath` field-values with `includeChildren`.
   Match paths case-insensitively at path boundaries and display every matching
   team-board scope. This describes area scope, not exact board/type/column or
-  iteration visibility. Unmatched/unknown work items remain available through
-  separate local grouping chips; no assigned rows are removed from the cache.
+  iteration visibility. Unmatched/unknown items cannot bypass selected scope;
+  local grouping operates only on the eligible dataset.
 - Persist team scopes independently of work-item snapshots. Permission, paging,
   and metadata failures retain last-good mappings, mark them stale, and leave
-  todo, work-item, and PR functionality available. Missing area metadata from
-  older cached work items is explicitly unknown until refreshed.
+  local todos and independently readable sources available. Last-good positive
+  matches may remain stale; unresolved areas never grant project-wide work.
+  Older cached work items without area metadata are not proof of inclusion.
+- Within the selected team, group assigned items by board and swimlane in
+  initially expanded, keyboard-operable disclosures with item counts. Read all
+  of that team's boards, their type/state mappings, and each board's own lane
+  field; do not use the generic last-board `System.BoardLane` value.
+  Preserve board/lane order and use the zero-ID default lane for empty values.
+  Unmapped types/states and unavailable lane assignments remain visible in
+  explicit fallback groups. Grouping does not narrow synchronization or totals.
+- Cache swimlane assignments separately per selected team. Failures retain the
+  last successful assignments with their timestamp, error and stale warning;
+  work-item and PR refreshes remain independent. Old caches without swimlanes
+  render an unavailable group until the next successful refresh. This is
+  type/state/lane grouping, not a claim of exact live board/filter visibility.
 
 ## ADO-004 — Review requests
 

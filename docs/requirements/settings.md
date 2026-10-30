@@ -2,8 +2,9 @@
 
 Date: 2026-10-28
 
-Status: **Product concept approved on 2026-10-28; detailed acceptance contracts
-proposed for review; not implemented.**
+Status: **Approved and implementation authorized on 2026-10-28; implemented.
+Offline verification and remaining live-account limits are recorded in the
+[application report](../verification/application.md).**
 
 The user confirmed the following product constraints:
 - Provide a settings page for selecting Azure DevOps boards and repositories.
@@ -19,20 +20,19 @@ The user confirmed the following product constraints:
   no repositories means no PR datasets.
 - Start empty on introduction, including existing installations. Do not import
   the legacy environment-configured scope.
-- Document requirements and an ADR first; implementation is not authorized by
-  this documentation task.
+- Document requirements and an ADR first; implement after separate authorization.
 
 The user approved the product concept after clarifying accessible teams and
-project grouping. The detailed contracts below remain proposed for review.
-`MUST` describes intended acceptance of this increment, not current application
-behavior, implementation authorization, or passing tests.
+project grouping, then explicitly authorized issue #1's implementation.
+`MUST` describes this increment's acceptance contracts, not proof of passing
+tests or live PAT permissions.
 See [ADR-0015](../adr/0015-persisted-azure-devops-settings.md).
 Implementation tracking: [GitHub issue #1](https://github.com/lukehartmann-vertigis/dev-desk/issues/1).
 
 ## Relationship to baseline v1
 
 The [baseline](REQUIREMENTS.md) and its implemented behavior remain documented
-separately. When approved and delivered, this increment replaces:
+separately. This delivered increment replaces:
 - ADO-001's environment-owned project/repository allowlist, nonempty constraint,
   and initial Utilities/repository defaults.
 - ADO-003's project-wide assigned-work inclusion and own-teams-only discovery.
@@ -53,6 +53,9 @@ The application MUST provide a dedicated settings page for Azure DevOps sources.
 
 Acceptance:
 - Settings is reachable from the dashboard, with a way back to the workspace.
+- Overview and Settings share the same visible navigation with the active page
+  identified. Navigation remains usable on narrow screens and when dashboard
+  loading fails; switching pages does not replace it with a standalone form.
 - Separate Work Item Sources and Repositories sections show named checkbox
   choices grouped by project. Work Item Sources identifies team-board area
   scopes. Each section supports searching by project or source name.
@@ -259,9 +262,11 @@ Acceptance:
 - Azure DevOps access stays read-only. No cloning, filesystem/shell access,
   coding runner, PR creation, or ticket implementation is introduced.
 
-## Verification plan
+## Verification
 
-Acceptance scenarios are planned checks, not completed test evidence.
+Acceptance scenarios below describe the verification boundary. Actual completed
+checks and unperformed live checks are in the
+[application report](../verification/application.md).
 
 - Domain/storage: stable identities, organization separation, empty state,
   atomic save, conflicts, failed writes, and persistence across restart.
@@ -284,6 +289,6 @@ Acceptance scenarios are planned checks, not completed test evidence.
 
 No general preferences framework, token editor, multi-organization UI, per-user
 accounts, automatic source selection, persisted local chip preferences, exact
-Azure Boards backlog reconstruction, or coding-agent execution. Detailed HTTP
-schemas, endpoint paging implementation, and live-account evidence belong to
-implementation/verification after review.
+Azure Boards backlog reconstruction, or coding-agent execution. Shared schemas
+are in the [settings contracts](../../src/lib/contracts/settings.ts); the API and paging implementation are
+described in the [architecture](../architecture.md).

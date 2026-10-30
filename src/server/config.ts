@@ -2,13 +2,7 @@ import { dirname, join, resolve } from 'node:path';
 import { z } from 'zod';
 import type { IntegrationStatus } from '../lib/contracts';
 
-/** Initial display identities and default allowlist; discovery never auto-enables other repositories. */
-export const initialRepositories = [
-	{ id: '446326e4-f451-4018-99ec-e80e667cbec2', project: 'Utilities', name: 'network-locator' },
-	{ id: '87401d25-3efa-41f0-b5ea-a3438dc77e6c', project: 'Utilities', name: 'Utilities' },
-];
 const nonempty = z.string().trim().min(1);
-const list = (value: string) => value.split(',').map((item) => item.trim());
 
 function status(present: boolean, valid: boolean, name: string): IntegrationStatus {
 	if (!present) {
@@ -32,6 +26,7 @@ function status(present: boolean, valid: boolean, name: string): IntegrationStat
  * The returned configuration contains secrets and must stay server-side.
  */
 export function configuration(env: Readonly<Record<string, string | undefined>> = process.env) {
+	const organization = env.AZURE_DEVOPS_ORG ?? 'vertigis';
 	const core = z.object({ database: nonempty, origin: z.url() }).parse({
 		database: env.DATABASE_PATH ?? '.data/dashboard.db',
 		origin: env.APP_ORIGIN ?? 'http://localhost:3000',
@@ -39,8 +34,6 @@ export function configuration(env: Readonly<Record<string, string | undefined>> 
 	const adoPresent = [
 		'AZURE_DEVOPS_PAT',
 		'AZURE_DEVOPS_ORG',
-		'AZURE_DEVOPS_PROJECTS',
-		'AZURE_DEVOPS_REPOSITORY_IDS',
 		'SYNC_INTERVAL_SECONDS',
 		'AZURE_DEVOPS_USER_EMAIL',
 	].some((key) =>
@@ -50,19 +43,12 @@ export function configuration(env: Readonly<Record<string, string | undefined>> 
 		.object({
 			token: nonempty,
 			org: z.string().regex(/^[a-zA-Z0-9][a-zA-Z0-9-]*$/),
-			projects: z.array(nonempty).min(1),
-			repositoryIds: z.array(z.uuid()).min(1),
 			interval: z.coerce.number().int().min(30).max(3600),
 			email: z.email().optional(),
 		})
 		.safeParse({
 			token: env.AZURE_DEVOPS_PAT,
-			org: env.AZURE_DEVOPS_ORG ?? 'vertigis',
-			projects: list(env.AZURE_DEVOPS_PROJECTS ?? 'Utilities'),
-			repositoryIds: list(
-				env.AZURE_DEVOPS_REPOSITORY_IDS ??
-					initialRepositories.map((repo) => repo.id).join(','),
-			),
+			org: organization,
 			interval: env.SYNC_INTERVAL_SECONDS ?? 180,
 			...(env.AZURE_DEVOPS_USER_EMAIL ? { email: env.AZURE_DEVOPS_USER_EMAIL } : {}),
 		});
@@ -80,6 +66,11 @@ export function configuration(env: Readonly<Record<string, string | undefined>> 
 		origin: new URL(core.origin).origin,
 		ado: ado.success ? ado.data : null,
 		adoStatus: status(adoPresent, ado.success, 'Azure DevOps'),
+		adoWarnings: ['AZURE_DEVOPS_PROJECTS', 'AZURE_DEVOPS_REPOSITORY_IDS']
+			.filter((key) => env[key] !== undefined)
+			.map((key) => `${key} is deprecated and ignored. Select sources in Settings.`),
+		// An invalid empty connection must not block local reads or reuse a real organization's settings.
+		adoOrganization: organization.trim() || '(unconfigured)',
 		copilot: copilot.success
 			? { ...copilot.data, statePath: resolve(copilot.data.statePath) }
 			: null,

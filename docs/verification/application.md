@@ -16,6 +16,67 @@ of real work items, PRs, todos, or conversation entries are intentionally omitte
 Test-suite totals, synthetic fixture counts, and technical measurements remain
 as reproducible verification evidence.
 
+### Persistent source settings — 2026-10-28
+
+The user explicitly authorized implementation of
+[issue #1](https://github.com/lukehartmann-vertigis/dev-desk/issues/1) after the
+requirements/ADR and implementation plan. The Settings increment replaces the
+old environment scope; see [SET-001 through SET-011](../requirements/settings.md)
+and [ADR-0015](../adr/0015-persisted-azure-devops-settings.md).
+
+Verification:
+- Typecheck, zero-warning lint, formatting, **128 offline tests**, and the
+  production Next.js build pass. The generated migration adds only the
+  organization-scoped settings table. Store tests reopen SQLite with nonempty
+  board/repository selections and exercise revision conflicts, rollback, and
+  empty legacy upgrades.
+- Adapter/API tests cover metadata pagination, non-member readable teams,
+  partial discovery, actual ownership, disabled repositories, no implicit
+  sources, independent repository selection, positive team-area unions,
+  assignment/project/area rechecks, retained labels, and save-time validation.
+- Scope tests reject deselected cache/detail/reference reads and discard
+  in-flight work/detail results when settings change. Known readable board areas
+  remain usable with explicit staleness when another selected team is unavailable;
+  no project-wide fallback is allowed. HTTP and AI todo paths share async
+  preflight outside the write transaction, then revision/cancellation guards.
+- **27 Chromium cases** pass against an isolated, token-free production instance,
+  including Settings search, keyboard selection, Save/Cancel, reload, conflict,
+  unavailable selection removal, empty navigation, origin protection, and
+  preservation of todos/chat. Existing dashboard/review cases use explicit
+  synthetic sources rather than depending on removed production defaults.
+- Settings has no horizontal overflow at 375/768/1440px. Synthetic desktop and
+  mobile Settings were visually inspected. Mocked catalog/save responses prove
+  UI behavior only; durable nonempty selections are covered by SQLite tests,
+  while the real API exercises durable empty selection and revision conflicts.
+  The saved empty selection and revision also survived a production process restart.
+- An explicitly blank invalid organization was also exercised on the production
+  instance: local state and Settings remain readable, while Azure reports its
+  configuration error. It cannot inherit a real organization's settings.
+
+No live organization-wide catalog or selected-source acceptance was run with the
+app's PAT for this increment. Earlier live observations below concern the
+superseded scope and do not certify new catalog permissions, readable non-member
+teams, or account-specific Graph parity. The normal user database and configured
+credentials were not used by the mutating test suite.
+
+### Shared navigation follow-up — 2026-10-28
+
+Overview and Settings now reuse one responsive application frame instead of
+Settings replacing the sidebar with a standalone form. Both navigation links
+remain visible, the current page uses `aria-current="page"`, and Overview's
+loading/error state retains navigation too. Settings has no unused chat column.
+Dashboard controllers, legends, and chat stay page-owned; cancellation behavior
+and data scope are unchanged.
+
+Verification:
+- Typecheck, zero-warning lint, formatting, production build, and the Docker
+  image's **128 offline tests** pass.
+- **31 Chromium cases** pass on the isolated, token-free production instance.
+  New cases exercise round trips, direct entry/reload, active-page indicators,
+  keyboard navigation, fixed navigation during content scrolling, no document
+  overflow at 375/768/1440px, and access to Settings after dashboard loading fails.
+  Existing todo ordering, chat, source settings, and contextual legend cases pass.
+
 ### Startup follow-up — 2026-10-27
 
 A live startup exposed a connection-data API version mismatch: `7.1` returned

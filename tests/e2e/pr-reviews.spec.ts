@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/test';
 import { dashboardSchema, type PullRequest, type Reviewer } from '../../src/lib/contracts';
+import { syntheticRepositories } from './fixtures';
 
 const reviewers: Reviewer[] = [
 	{ id: 'alice', name: 'Alice', vote: 10, required: true, group: false },
@@ -21,10 +22,9 @@ for (const width of [375, 1440]) {
 	}) => {
 		await page.setViewportSize({ width, height: 900 });
 		const state = dashboardSchema.parse(await (await request.get('/api/state')).json());
-		const repository = state.ado.repositories[0];
-		if (!repository) {
-			throw new Error('Missing configured repository');
-		}
+		const repository = syntheticRepositories[0];
+		state.ado.repositories = syntheticRepositories;
+		state.ado.selection = { revision: 1, boards: 0, repositories: 2 };
 		const mixed: PullRequest = {
 			id: 101,
 			title: 'Mixed reviewers',

@@ -2,13 +2,13 @@
 
 Date: 2026-10-28
 
-Status: Accepted for the product concept; technical details remain proposed for review.
-Implementation is not authorized.
+Status: Accepted; implementation authorized and delivered on 2026-10-28.
+Offline evidence and remaining live-account limits are recorded separately.
 
 ## Context
 
-The dashboard currently derives project/repository scope from server environment
-configuration. Team-board metadata describes the PAT user's teams, and local
+Before this increment, the dashboard derived project/repository scope from server environment
+configuration. Team-board metadata described the PAT user's teams, and local
 chips select which already-cached group is visible. Neither the chips nor
 informational legends are persistent application-scope configuration.
 
@@ -25,13 +25,14 @@ Clarification confirmed:
 - Either list may be empty; empty never means all.
 - Introduction starts empty, including existing installations. Do not migrate
   the legacy environment-selected scope.
-- The present task is requirements/ADR documentation only.
+- Requirements and this ADR precede separately authorized implementation.
 
 The user approved this product concept on 2026-10-28 after clarifying accessible
-teams and project grouping. The architecture and detailed acceptance contracts
-in this record and the [settings specification](../requirements/settings.md)
-remain proposed for review. Concept approval is neither implementation
-authorization nor evidence of implemented behavior.
+teams and project grouping. After documentation and an implementation plan, the
+user explicitly authorized implementation of issue #1. The
+[settings specification](../requirements/settings.md) defines acceptance; the
+[application report](../verification/application.md) separates offline evidence
+from unperformed live checks.
 
 ## Decision
 
@@ -81,8 +82,8 @@ sources. An organization change cannot inherit another organization's
 selection. A PAT change for the same organization rechecks actual access
 without silently deleting the stored selection.
 
-AZURE_DEVOPS_PROJECTS and AZURE_DEVOPS_REPOSITORY_IDS cease to be scope sources
-when this increment is implemented; report legacy values as deprecated.
+AZURE_DEVOPS_PROJECTS and AZURE_DEVOPS_REPOSITORY_IDS are no longer scope sources;
+report legacy values as deprecated.
 There is no merge, environment override, default repository seed, or first-run
 import. Existing caches remain subject to the new initially empty scope.
 
@@ -144,8 +145,7 @@ Do not automatically purge caches or silently rewrite the conversation.
 
 ## Supersession boundary
 
-The approved concept is not yet a change to the running application. On approval
-of the detailed contracts and delivery, this increment supersedes:
+This delivered increment supersedes:
 - [ADR-0009](0009-ado-scope-and-review-visibility.md): environment-owned initial
   project/repository choices and project-wide assigned-work scope, not explicit
   selection or PR review semantics.
@@ -156,8 +156,8 @@ of the detailed contracts and delivery, this increment supersedes:
   source dataset becomes complete enabled source dataset. Chips themselves
   remain local, single-select presentation; tool disclosure behavior is unchanged.
 
-Accepted historical ADRs are not rewritten. Existing application documentation
-continues to describe implemented behavior until this increment is delivered.
+Accepted historical ADRs are not rewritten. Current application documentation
+describes the persisted selection rather than the superseded defaults.
 
 ## Alternatives
 
@@ -184,8 +184,9 @@ continues to describe implemented behavior until this increment is delivered.
 - Scope can change while async work runs, so revision checks and consistent
   server-side readers are necessary. This is more than adding checkbox state.
 - The settings page introduces navigation without changing todo/chat semantics.
-- No new runtime dependency or infrastructure is required. Concrete schemas and
-  API contracts will be chosen during implementation after specification review.
+- No new runtime dependency or infrastructure is required. Shared Zod contracts,
+  one SQLite settings table, and the existing protected catch-all API implement
+  the boundary.
 
 ## Verification
 
@@ -194,6 +195,6 @@ plan for domain/storage, adapter, scope enforcement, async lifecycle, upgrade,
 and browser scenarios. Keep default tests offline and live checks explicitly
 opt-in and read-only.
 
-This record reports no passing tests, live discovery, migration, or implemented
-settings page. Implementation and acceptance evidence require a later task.
-Track that work in [GitHub issue #1](https://github.com/lukehartmann-vertigis/dev-desk/issues/1).
+See the [application report](../verification/application.md) for completed
+offline/migration/browser checks and the remaining live discovery limitation.
+Track delivery in [GitHub issue #1](https://github.com/lukehartmann-vertigis/dev-desk/issues/1).

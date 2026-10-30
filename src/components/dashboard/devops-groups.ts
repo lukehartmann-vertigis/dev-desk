@@ -3,6 +3,7 @@ import {
 	type BoardScope,
 	type PullRequest,
 	type Snapshot,
+	type SwimlaneScope,
 	type WorkItem,
 } from '../../lib/contracts';
 import type { LegendEntry } from './scope-legend';
@@ -17,6 +18,63 @@ export interface GroupedDevOpsRow {
 /** One local chip and its rows; overlapping team memberships intentionally repeat a row across chips. */
 export interface DevOpsGroup extends LegendEntry {
 	rows: GroupedDevOpsRow[];
+}
+
+/** A populated board/lane disclosure; fallback groups never discard unresolvable rows. */
+export interface SwimlaneGroup {
+	id: string;
+	board: string | null;
+	label: string;
+	rows: GroupedDevOpsRow[];
+}
+
+/** Groups only the selected team's rows, preserving provider board/lane order and last-good matches. */
+export function groupWorkSwimlanes(
+	rows: GroupedDevOpsRow[],
+	scope: SwimlaneScope | undefined,
+): SwimlaneGroup[] {
+	const groups: SwimlaneGroup[] = [];
+	const matched = new Set<GroupedDevOpsRow>();
+	for (const board of scope?.boards ?? []) {
+		const assignments = new Map(board.items.map((item) => [item.id, item.laneId]));
+		for (const lane of [...board.lanes, { id: null, name: 'Swimlane unavailable' }]) {
+			const members = rows.filter(
+				({ row }) =>
+					!('repositoryId' in row) &&
+					assignments.has(row.id) &&
+					assignments.get(row.id) === lane.id,
+			);
+			if (members.length) {
+				members.forEach((row) => matched.add(row));
+				groups.push({
+					id: `${board.id}:${lane.id ?? 'unknown'}`,
+					board: board.name,
+					label: lane.name || 'Default swimlane',
+					rows: members,
+				});
+			}
+		}
+	}
+	const evaluated = new Set(scope?.itemIds ?? []);
+	const remaining = rows.filter((row) => !matched.has(row));
+	const unmapped = remaining.filter(
+		({ row }) =>
+			!('repositoryId' in row) &&
+			scope?.successAt &&
+			!scope.stale &&
+			!scope.error &&
+			evaluated.has(row.id),
+	);
+	const unknown = remaining.filter((row) => !unmapped.includes(row));
+	for (const fallback of [
+		{ id: 'unmapped', label: 'Not mapped to a board', rows: unmapped },
+		{ id: 'unknown', label: 'Swimlane unavailable', rows: unknown },
+	]) {
+		if (fallback.rows.length) {
+			groups.push({ ...fallback, board: null });
+		}
+	}
+	return groups;
 }
 
 /**

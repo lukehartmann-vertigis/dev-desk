@@ -1,6 +1,7 @@
 import { expect, test } from '@playwright/test';
 import { randomUUID } from 'node:crypto';
 import { dashboardSchema, type BoardScope } from '../../src/lib/contracts';
+import { syntheticRepositories } from './fixtures';
 
 const headers = {
 	'Content-Type': 'application/json',
@@ -91,9 +92,7 @@ test('TODO-008/UX-003: pointer and keyboard ordering persists', async ({ page })
 	);
 });
 
-test('TODO-009/OPS-005: references stay usable and explicitly unverified without an upstream token', async ({
-	page,
-}) => {
+test('SET-007/010: new references cannot bypass an empty source selection', async ({ page }) => {
 	const title = `Reference ${randomUUID()}`;
 	await page.goto('/');
 	await page.getByRole('textbox', { name: 'New todo' }).fill(title);
@@ -103,14 +102,11 @@ test('TODO-009/OPS-005: references stay usable and explicitly unverified without
 		.getByRole('textbox', { name: 'External reference' })
 		.fill('https://dev.azure.com/vertigis/Utilities/_workitems/edit/123');
 	await page.getByRole('button', { name: 'Save', exact: true }).click();
-	const row = page.locator('.todo-row').filter({ hasText: title });
-	await expect(row.getByRole('link', { name: 'Work item #123' })).toHaveAttribute(
-		'href',
+	await expect(page.getByRole('alert').filter({ hasText: 'outside the selected' })).toBeVisible();
+	await expect(page.getByRole('textbox', { name: 'External reference' })).toHaveValue(
 		'https://dev.azure.com/vertigis/Utilities/_workitems/edit/123',
 	);
-	await expect(row).toContainText('Unverified reference');
-	await row.getByRole('button', { name: 'Check reference' }).click();
-	await expect(row).toContainText('Unavailable:');
+	await page.getByRole('button', { name: 'Cancel', exact: true }).click();
 	await page.getByRole('checkbox', { name: `Complete ${title}`, exact: true }).click();
 	await expect(
 		page.getByRole('checkbox', { name: `Complete ${title}`, exact: true }),
@@ -246,14 +242,9 @@ test('ADO-003/004/005/008/010, UX-005/OPS-007: populated tabs, safe text and dis
 	request,
 }) => {
 	const state = dashboardSchema.parse(await (await request.get('/api/state')).json());
-	const repository = state.ado.repositories[0];
-	if (!repository) {
-		throw new Error('Missing configured repository');
-	}
-	const secondRepository = state.ado.repositories[1];
-	if (!secondRepository) {
-		throw new Error('Missing second configured repository');
-	}
+	const [repository, secondRepository] = syntheticRepositories;
+	state.ado.repositories = syntheticRepositories;
+	state.ado.selection = { revision: 1, boards: 2, repositories: 2 };
 	const mapping: BoardScope = {
 		project: 'Utilities',
 		boards: [
@@ -619,6 +610,8 @@ for (const width of [375, 768, 1440]) {
 			...state.ado,
 			state: 'ready',
 			boardScopes: [],
+			repositories: syntheticRepositories,
+			selection: { revision: 1, boards: 1, repositories: 2 },
 			snapshots: (['work', 'reviews', 'own'] as const).map((dataset) => ({
 				scope: `synthetic:${dataset}`,
 				dataset,

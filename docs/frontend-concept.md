@@ -47,6 +47,12 @@ integrated browser; subsequent visual checks use the actual local application.
   select the first/last tab. Switching tabs is local, with no upstream read or
   mutation. Labels wrap on narrow screens without hiding the count bubbles.
 - The right-hand chat is persistently accessible on desktop.
+- Within the selected work-item team, native disclosures group items by board
+  and swimlane in board/lane order. Groups start expanded and show item counts;
+  pointer and keyboard collapse/expand them locally without API requests.
+  Default lanes are labelled "Default swimlane" when unnamed. Unmapped and
+  unavailable assignments remain visible; stale lane caches expose a warning
+  and their last successful synchronization timestamp independently of team areas.
 - The left rail provides noninteractive repository/team-board legends, not filters
   or a second application hierarchy.
 - The app fills the viewport. The central column has its own vertical scrollbar;
@@ -160,14 +166,15 @@ Boards are configured team views, not repository folders. A work item may be
 unlinked or related to code in multiple repositories. The preview's repository
 names are sample data, not discovered repositories.
 
-Scoped MCP exploration succeeded after authentication. The user then confirmed:
-- First workspace: Utilities project, explicitly allowlisting network-locator
-  and Utilities for PR synchronization.
-- Work items: all assigned records in configured projects, across all states,
-  without a team/board/area filter.
+The delivered [Settings increment](requirements/settings.md) supersedes the
+original fixed workspace while preserving the visual concepts:
+- Initial workspace: empty Work Item Sources and Repositories, including upgrades.
+  Settings offers readable teams and repositories grouped by project.
+- Work items: the current user's assigned records in selected team areas, across
+  all types and states. Repositories govern PR datasets independently.
 - Repository legend: no display controls; consistent colored dots and row edges
   identify each configured repository in both PR sections.
-- Board legend: use the PAT user's project teams and full area-path scopes.
+- Board legend: use selected readable teams and full area-path scopes.
   Annotate work items with every matching team-board scope; text accompanies
   color, and multi-match edges carry all matching colors.
 - Work-item tabs/bubbles and board markers use warm gold/red tones. PR
@@ -178,7 +185,7 @@ Scoped MCP exploration succeeded after authentication. The user then confirmed:
 - Group-only review requests: hide once all relevant reviewer groups approve.
   An unapproved personal reviewer entry remains actionable.
 
-Neither legend changes the server allowlist or work-item selection. Team scope
+Neither legend changes the persisted server selection. Team scope
 matching uses case-insensitive area paths and each rule's `includeChildren`, not
 repository names. It is not a reproduction of board columns, visible work-item
 types, or iteration filters. Unknown/unmatched mappings and stale/failed team

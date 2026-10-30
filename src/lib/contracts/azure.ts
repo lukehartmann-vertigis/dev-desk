@@ -19,13 +19,35 @@ export const teamBoardSchema = z.object({
 	areas: z.array(z.object({ path: z.string().min(1), includeChildren: z.boolean() })),
 });
 
-/** PAT user's team-board area scope, including the descendant rule for every area. */
+/** Selected readable team's area scope, including the descendant rule for every area. */
 export type TeamBoard = z.infer<typeof teamBoardSchema>;
+
+/** Board-specific lane assignments; null laneId means the returned lane could not be resolved. */
+export const boardSwimlanesSchema = z.object({
+	id: z.uuid(),
+	name: z.string().min(1),
+	lanes: z.array(z.object({ id: z.uuid(), name: z.string().nullable() })),
+	items: z.array(z.object({ id: z.number().int().positive(), laneId: z.uuid().nullable() })),
+});
+
+export type BoardSwimlanes = z.infer<typeof boardSwimlanesSchema>;
+
+/** Independent last-good swimlane cache; itemIds records which assigned items were evaluated. */
+export const swimlaneScopeSchema = z.object({
+	boards: z.array(boardSwimlanesSchema),
+	itemIds: z.array(z.number().int().positive()),
+	successAt: z.string().nullable(),
+	error: z.string().nullable(),
+	stale: z.boolean(),
+});
+
+export type SwimlaneScope = z.infer<typeof swimlaneScopeSchema>;
 
 /** Validates independently cached team metadata, preserving freshness and safe error text. */
 export const boardScopeSchema = z.object({
 	project: z.string(),
 	boards: z.array(teamBoardSchema),
+	swimlanes: z.record(z.string(), swimlaneScopeSchema).optional(),
 	successAt: z.string().nullable(),
 	error: z.string().nullable(),
 	stale: z.boolean(),

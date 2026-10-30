@@ -5,6 +5,46 @@ import { mutationSchema, type Mutation, type TodoList, type Reference } from '..
 import { AppError } from './errors';
 import { todos, receipts, approvals } from './schema';
 import { meta, setMeta, type Store } from './store';
+import type { Azure } from './azure';
+
+/**
+ * Verifies only new/changed references before the short synchronous write transaction.
+ * The final guard binds authorization to the settings revision and the caller's active run.
+ */
+export async function mutateTodoWithReference(
+	store: Store,
+	input: Mutation,
+	azure: Pick<Azure, 'selection' | 'verify' | 'validate' | 'assertRevision'>,
+	signal: AbortSignal,
+	guard: () => void = () => {},
+) {
+	const command = mutationSchema.parse(input);
+	const check = () => {
+		if (signal.aborted) {
+			throw new AppError('CANCELLED', 'The operation was cancelled.', 409);
+		}
+		guard();
+	};
+	check();
+	if (store.db.select().from(receipts).where(eq(receipts.id, command.requestId)).get()) {
+		return mutateTodo(store, command);
+	}
+	const current =
+		'id' in command ? readTodos(store).items.find((todo) => todo.id === command.id) : undefined;
+	const reference =
+		command.kind === 'create' || command.kind === 'edit' ? command.reference : null;
+	const revision = azure.selection.revision;
+	if (reference && JSON.stringify(reference) !== JSON.stringify(current?.reference)) {
+		await azure.verify(reference, signal);
+		check();
+		azure.assertRevision(revision);
+	}
+	return mutateTodo(store, command, (value) => {
+		check();
+		azure.assertRevision(revision);
+		azure.validate(value);
+	});
+}
 
 /** Reads the complete local list in stored position order without contacting Azure DevOps. */
 export function readTodos(store: Store): TodoList {

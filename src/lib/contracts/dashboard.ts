@@ -25,6 +25,7 @@ export interface DashboardState {
 		snapshots: Snapshot[];
 		repositories: Repository[];
 		boardScopes: BoardScope[];
+		selection: { revision: number; boards: number; repositories: number };
 	};
 	copilot: IntegrationStatus & { running: boolean; cleanupPending: boolean };
 	chat: ChatMessage[];
@@ -45,6 +46,11 @@ export const dashboardSchema: z.ZodType<DashboardState> = z.object({
 		repositories: z.array(repositorySchema),
 		boardScopes: z.array(boardScopeSchema),
 		snapshots: z.array(snapshotSchema),
+		selection: z.object({
+			revision: z.number().int().nonnegative(),
+			boards: z.number().int().nonnegative(),
+			repositories: z.number().int().nonnegative(),
+		}),
 	}),
 	copilot: integrationSchema.extend({ running: z.boolean(), cleanupPending: z.boolean() }),
 	chat: z.array(chatMessageSchema),

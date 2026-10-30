@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import type { BoardScope, PullRequest, WorkItem } from '../../lib/contracts';
-import { groupDevOpsRows } from './devops-groups';
+import type { BoardScope, PullRequest, SwimlaneScope, WorkItem } from '../../lib/contracts';
+import { groupDevOpsRows, groupWorkSwimlanes } from './devops-groups';
 
 const boards = [
 	{ id: 'alpha', label: 'Utilities / Alpha', color: '#ffd166' },
@@ -80,6 +80,81 @@ describe('local DevOps groups', () => {
 		expect(groups[0]?.rows[0]?.markers).toEqual(boards);
 		expect(groups[0]?.rows[1]?.markers).toEqual([boards[0]]);
 		expect(rows).toEqual(original);
+	});
+
+	describe('local work-item swimlanes', () => {
+		const scope: SwimlaneScope = {
+			boards: [
+				{
+					id: 'stories',
+					name: 'Stories',
+					lanes: [
+						{ id: 'expedite', name: 'Expedite' },
+						{ id: 'default', name: null },
+						{ id: 'empty', name: 'Empty lane' },
+					],
+					items: [
+						{ id: 1, laneId: 'default' },
+						{ id: 2, laneId: 'expedite' },
+						{ id: 3, laneId: null },
+					],
+				},
+				{
+					id: 'features',
+					name: 'Features',
+					lanes: [{ id: 'expedite', name: 'Expedite' }],
+					items: [{ id: 1, laneId: 'expedite' }],
+				},
+			],
+			itemIds: [1, 2, 3, 4],
+			successAt: '2026-01-01T00:00:00Z',
+			error: null,
+			stale: false,
+		};
+		const rows = [1, 2, 3, 4, 5].map((id) => ({
+			row: work(id, 'Utilities\\Feature'),
+			boardScope: mapping,
+			markers: boards,
+		}));
+
+		it('preserves board/lane order and isolates identical lane names while retaining every row', () => {
+			const original = structuredClone(rows);
+			const result = groupWorkSwimlanes(rows, scope);
+			expect(
+				result.map((group) => [
+					group.board,
+					group.label,
+					group.rows.map(({ row }) => row.id),
+				]),
+			).toEqual([
+				['Stories', 'Expedite', [2]],
+				['Stories', 'Default swimlane', [1]],
+				['Stories', 'Swimlane unavailable', [3]],
+				['Features', 'Expedite', [1]],
+				[null, 'Not mapped to a board', [4]],
+				[null, 'Swimlane unavailable', [5]],
+			]);
+			expect(rows).toEqual(original);
+			expect(result[1]?.rows[0]?.markers).toEqual(boards);
+		});
+
+		it('uses only the selected team cache and keeps stale positive matches without inferring negative matches', () => {
+			const result = groupWorkSwimlanes(rows, { ...scope, stale: true, error: 'Denied.' });
+			expect(result.find((group) => group.id === 'unmapped')).toBeUndefined();
+			expect(result.at(-1)?.rows.map(({ row }) => row.id)).toEqual([4, 5]);
+			const otherTeam = groupWorkSwimlanes(rows, {
+				...scope,
+				boards: [{ ...scope.boards[0]!, items: [{ id: 1, laneId: 'expedite' }] }],
+			});
+			expect(otherTeam[0]?.rows.map(({ row }) => row.id)).toEqual([1]);
+		});
+
+		it('keeps all legacy rows visible when no swimlane metadata exists', () => {
+			expect(groupWorkSwimlanes(rows, undefined)).toEqual([
+				{ id: 'unknown', board: null, label: 'Swimlane unavailable', rows },
+			]);
+			expect(groupWorkSwimlanes([], scope)).toEqual([]);
+		});
 	});
 
 	it.each([

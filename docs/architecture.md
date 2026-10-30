@@ -6,11 +6,10 @@ The [application report](verification/application.md) separates verified local
 behavior from outstanding account-specific live acceptance. The earlier
 [G0 report](verification/g0.md) remains historical compatibility evidence.
 
-Planned, not implemented: [Azure DevOps settings](requirements/settings.md) and
-[ADR-0015](adr/0015-persisted-azure-devops-settings.md) propose persistent,
+Implemented increment: [Azure DevOps settings](requirements/settings.md) and
+[ADR-0015](adr/0015-persisted-azure-devops-settings.md) define persistent,
 application-wide source selection with organization-wide discovery and an empty
-initial scope. The architecture and environment variables below describe the
-current application, not that proposed increment.
+initial scope, replacing the former environment-owned allowlists.
 
 ## 1. Shape and boundaries
 
@@ -77,11 +76,20 @@ dependency baseline for the real application.
 Modules follow domain and lifecycle boundaries. Compatibility facades preserve
 existing application import paths while implementations remain cohesive:
 
+Overview (including its loading/error state) and Settings use the same
+`AppShell` component for brand, navigation, active-page indication, and responsive
+layout. Dashboard legends and chat are optional page-owned slots; Settings has
+no empty chat column. Controllers remain route-owned, so leaving Overview still
+cancels active chat. No shared state manager, extra polling, or provider reads
+are introduced by navigation.
+
 ```text
 src/
     app/                  Next.js pages, route handlers, layouts
     components/
+        app-shell.tsx     Shared Overview/Settings navigation and responsive page frame
         dashboard.tsx     Workspace composition
+        settings.tsx      Project-grouped source drafts, discovery, explicit Save/Cancel
         dashboard/
             use-dashboard.ts       Polling, controlled forms, retries, chat lifecycle
             api.ts                 Validated browser HTTP boundary
@@ -104,6 +112,8 @@ src/
         store.ts          SQLite ownership and runtime migrations
         todos.ts          Shared transactional mutations, receipts, approvals
         azure.ts          Identity, scoped sync/cache, reference reads/validation
+        azure-discovery.ts Metadata-only organization catalog and ownership validation
+        settings.ts       Organization-scoped selection and atomic revision checks
         azure-http.ts     Authenticated REST transport, timeouts, bounded retries
         chat.ts           Managed SDK, tools, transcript, cancellation/cleanup
         chat-policy.ts    SDK isolation policy and tool/classification schemas
@@ -142,6 +152,7 @@ Implemented tables are defined in [schema.ts](../src/server/schema.ts).
 | Todo | UUID, title, status, position, revision, created/updated/completed timestamps, optional typed external reference |
 | Metadata | List revision, single SDK conversation/classifier IDs and state paths, cleanup flag |
 | Snapshot | Organization + dataset + project/repository key, normalized JSON, last success, latest failure |
+| Azure settings | Normalized organization, revision, selected team/project and repository/project UUIDs with last-known labels |
 | Message | UUID, run ID, timestamp, role, content, complete/interrupted/failed state |
 | Assistant run | Request UUID, creation timestamp, lifecycle state |
 | Tool outcome | Structured tool-role message; durable mutation identity derives from run and SDK tool-call IDs |
@@ -182,23 +193,29 @@ Implemented tables are defined in [schema.ts](../src/server/schema.ts).
 
 ## 5. HTTP and error contracts
 
-Proposed endpoints; all mutations require validated same-origin requests.
+Implemented endpoints share the catch-all handler; all mutations require
+validated same-origin JSON requests with the application marker.
 
 | Surface | Contract |
 | --- | --- |
-| `GET /api/dashboard` | Todos, cache snapshots, revisions, integration freshness/status; bounded lists |
-| `POST /api/todos` | Create a validated todo with client operation ID |
-| `PATCH /api/todos/:id` | Edit/complete/reopen with expected todo revision |
-| `DELETE /api/todos/:id` | Confirmed UI deletion with revision and operation ID |
-| `PUT /api/todos/order` | Ordered open IDs + expected list revision + operation ID |
-| `POST /api/sync` | Return `202` and cycle ID; coalesce with an active cycle |
-| `GET /api/chat` | Persisted conversation, paged messages, active run/approval state |
-| `POST /api/chat/runs` | Validated prompt and client request ID; streamed events through `fetch` |
-| `POST /api/chat/runs/:id/cancel` | Stop further work; report committed tool outcomes |
-| `POST /api/chat/approvals/:id` | Explicit confirm/reject against server-owned exact deletion |
-| `DELETE /api/chat` | Confirmed clear, including SDK state; expose incomplete cleanup |
-| `GET /api/health/live` | Process health only |
-| `GET /api/health/ready` | Local DB/migration readiness and separate degraded integrations |
+| `GET /api/state` | Todos, scoped snapshots, selected source counts/revision, integration status, chat and approvals |
+| `GET /api/settings` | Committed identities/labels and safe connection/deprecation status; no upstream discovery |
+| `POST /api/settings/catalog` | Metadata-only accessible project/team/repository discovery; explicit partial errors |
+| `POST /api/settings` | Expected revision and both UUID/project-ID lists; validate additions, then atomic save |
+| `POST /api/todos` | Shared create/edit/complete/reopen/delete/reorder commands, revisions, operation receipts |
+| `POST /api/reference` | Parse a selected-source URL; this is not live area/access verification |
+| `POST /api/reference/check` | Current-scope, assignment/area and upstream-access verification |
+| `POST /api/refresh` | Return `202` with local state; coalesce with an active cycle |
+| `POST /api/chat` | Validated prompt and request ID; streamed NDJSON through `fetch` |
+| `POST /api/chat/cancel` | Stop further work; retain committed tool outcomes |
+| `POST /api/approval` | Explicit confirm/reject against server-owned exact deletion |
+| `POST /api/chat/clear` | Confirmed clear, including SDK state; expose incomplete cleanup |
+| `GET /api/health` | Local process/storage readiness and separate integration configuration status |
+
+New or changed non-null todo references use the same async preflight for HTTP
+and AI callers. Verify outside the SQLite transaction, then recheck the settings
+revision and caller authorization before committing. Unchanged references and
+local-only edits do not depend on Azure availability.
 
 List endpoints use stable cursors and bounded page sizes; the dashboard initially
 renders only a bounded slice. Server-rendered initial data and browser refreshes
@@ -216,23 +233,25 @@ durable run status rather than pretending a successful HTTP status means success
 
 ## 6. Synchronization
 
-1. Read validated config and resolve the authenticated Azure DevOps identity.
-2. Enumerate configured projects/repositories using complete endpoint-specific
-   pagination.
-3. Resolve review membership, then retrieve assigned work items, direct and
-   group-derived reviewer requests, and own active PRs.
+1. Capture the committed source revision. Empty lists make no content requests.
+2. Resolve the PAT identity and, when needed, independent review-group membership.
+3. Validate selected sources and resolve selected teams' area rules. Retrieve
+   assigned work only within the selected area union, and PRs only from selected
+   repositories. Discovery of all candidates is separate from synchronization.
 4. Normalize fields without assuming process-specific type/state names.
-5. Commit a complete snapshot per dataset/project or dataset/repository scope.
+5. Recheck the revision before committing each project-ID/repository snapshot.
 6. Record errors without replacing a failed scope's old data.
-7. Schedule the next non-overlapping cycle after the configured delay.
+7. Schedule the next non-overlapping cycle after the configured delay. Saving
+   during a cycle discards superseded results and queues one immediate follow-up.
 
 Use small bounded upstream concurrency, timeouts, and bounded retry budgets.
 Respect continuation tokens, endpoint batch limits, throttling, and query result
 ceilings. Do not infer that every Azure DevOps endpoint paginates the same way.
 
 Successful empty snapshots remove old matches. Partial results are not promoted
-to complete snapshots. Removing a configured scope excludes its cache from view;
-re-adding it marks old data stale until a new successful sync.
+to complete snapshots. Removing a saved scope immediately excludes its cache
+from current reads. Reselection may reuse eligible last-good data with its real
+timestamps and errors. Missing board metadata never grants project-wide scope.
 
 The browser refreshes **local** dashboard data every 15 seconds while visible and
 on focus. It never drives upstream synchronization. Manual refresh joins an
@@ -252,22 +271,29 @@ A work item can have no code association, or links to changes/PRs in more than
 one repository. The clickdummy's single `data-repo` label on each work-item row
 does not establish a valid production mapping.
 
-After read-only metadata exploration, the user selected an explicit repository
-allowlist. The initial workspace is Utilities, with network-locator and Utilities
-as its PR repositories. Enumerate repository metadata only within configured
-projects to validate the selection; fetch PR data only for selected repositories.
-New repositories are not automatically included. An empty allowlist is not
-equivalent to all repositories.
+Settings lists readable team-board scopes and enabled repositories across every
+PAT-accessible project. Projects group choices; they are not a third selection.
+Project listing follows continuation tokens; readable teams use `$mine=false`
+and complete `$top`/`$skip` paging. Repository listing has no documented paging
+mechanism; unexpected continuation is reported incomplete.
 
-Assigned work items remain project-wide and user-assigned, with all states and
-no team/board/area filter. UI repository and team-board legends are informational,
-not display controls, and cannot expand the server allowlist.
-The adapter independently caches the PAT user's project teams and their
-`System.AreaPath` field-values, including `includeChildren`, in SQLite metadata.
-Dashboard/chat reads expose these scopes with their own freshness and errors.
-All matching team scopes annotate work items without asserting exact board
-column, type, or iteration visibility; see
-[ADR-0012](adr/0012-informational-legends-and-team-scopes.md).
+SQLite is the only selection authority. New and upgraded installations start
+empty; discovery, old environment variables, and retained caches never enable
+sources. Selected team-area unions constrain assigned work across all types and
+states, with case-insensitive path-boundary/includeChildren matching. Work batch
+responses are rechecked for project, assignment, and area. Selected repositories
+independently govern both PR datasets.
+
+Team-area metadata and labels retain last-good values with explicit errors.
+Only positively matched items can remain available when metadata is stale.
+Current cache readers filter again against the selection. Live work detail and
+new reference checks fetch minimal project/area/assignment fields before full
+bodies or discussions, and reject superseded results before exposure.
+
+Legends and single-select chips remain presentation over the eligible dataset;
+they do not change saved scope or grant agent access. Team areas do not assert
+exact board columns, types, or iteration visibility. See
+[ADR-0015](adr/0015-persisted-azure-devops-settings.md).
 
 Team/group review support is in scope. The user's positive vote hides the PR from
 review requests. Otherwise, an unapproved individual reviewer entry keeps it
@@ -390,14 +416,14 @@ See [ADR-0007](adr/0007-automatic-ai-intent.md).
 
 ## 9. Deployment and configuration
 
-Implemented configuration; only the two tokens are needed for the initial
-workspace. The template is [.env.example](../.env.example):
+Connection configuration remains server-side. Choose sources separately in
+Settings; no source is enabled by default. The template is [.env.example](../.env.example):
 
 | Variable | Meaning |
 | --- | --- |
 | `AZURE_DEVOPS_ORG` | Organization identifier; default `vertigis` |
-| `AZURE_DEVOPS_PROJECTS` | Non-empty comma-separated allowed project identifiers/names; default `Utilities` |
-| `AZURE_DEVOPS_REPOSITORY_IDS` | Non-empty comma-separated repository UUIDs; defaults to the two selected repositories |
+| `AZURE_DEVOPS_PROJECTS` | Deprecated and ignored; reported in Settings |
+| `AZURE_DEVOPS_REPOSITORY_IDS` | Deprecated and ignored; reported in Settings |
 | `AZURE_DEVOPS_PAT` | Read-only Azure DevOps token |
 | `AZURE_DEVOPS_USER_EMAIL` | Optional assertion against resolved PAT identity |
 | `COPILOT_GITHUB_TOKEN` | Explicit GitHub credential supported by the pinned SDK |
@@ -414,8 +440,8 @@ Configuration groups:
   (including a blank token alone) disable it explicitly; partial or invalid
   non-token settings produce a visible
   `configuration_error` for Azure DevOps only.
-- Repository UUID syntax is validated locally; project ownership, accessibility,
-  and enabled state are checked during integration initialization. Failures
+- Selection UUID syntax is validated locally; project ownership, accessibility,
+  enabled state, and team areas are checked before adding sources. Failures
   degrade that integration explicitly, not the local todo service. Do not require
   external calls during build or block local readiness on Azure DevOps.
 - An absent/blank Copilot token with no explicit optional settings disables chat
@@ -429,7 +455,7 @@ Configuration groups:
 - Secrets are runtime-only and never use `NEXT_PUBLIC_` variables or Docker
   build arguments.
 - There is no MVP provider-selector variable: Copilot is the chosen integration.
-- No OAuth/login flow, `.env` editor, token submission endpoint, or settings UI
+- No OAuth/login flow, `.env` editor, token submission endpoint, or credential settings UI
   for secrets is exposed in the browser.
 
 The container listens internally on the required interface while Compose

@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -6,7 +6,10 @@ import { randomUUID } from 'node:crypto';
 import { eq } from 'drizzle-orm';
 import { openStore, type Store } from './store';
 import { approvals, receipts, runs } from './schema';
-import { approveDeletion, mutateTodo, readTodos } from './todos';
+import { approveDeletion, mutateTodo, mutateTodoWithReference, readTodos } from './todos';
+import { Azure } from './azure';
+import { configuration } from './config';
+import { readSettings, writeSettings } from './settings';
 
 let directory: string;
 let store: Store;
@@ -185,6 +188,77 @@ describe('persistent todo contracts', () => {
 			},
 		);
 		expect(first().reference).toEqual(reference);
+	});
+	it('SET-007 preflights new references outside transactions and keeps unchanged references editable', async () => {
+		const azure = new Azure(store, configuration({}));
+		const verify = vi.spyOn(azure, 'verify').mockImplementation(async () => {
+			expect(store.sqlite.inTransaction).toBe(false);
+			return { available: true, checkedAt: new Date().toISOString() };
+		});
+		vi.spyOn(azure, 'validate').mockReturnValue({
+			id: '11111111-1111-4111-8111-111111111111',
+			projectId: '22222222-2222-4222-8222-222222222222',
+			project: 'Utilities',
+			name: 'Team',
+		});
+		const reference = {
+			kind: 'workItem' as const,
+			organization: 'vertigis',
+			project: 'Utilities',
+			id: 1,
+		};
+		const command = {
+			kind: 'create' as const,
+			title: 'Linked',
+			reference,
+			requestId: randomUUID(),
+		};
+		await mutateTodoWithReference(store, command, azure, new AbortController().signal);
+		await mutateTodoWithReference(store, command, azure, new AbortController().signal);
+		expect(verify).toHaveBeenCalledTimes(1);
+		writeSettings(store, readSettings(store, 'vertigis'));
+		await mutateTodoWithReference(
+			store,
+			{
+				kind: 'edit',
+				id: first().id,
+				revision: first().revision,
+				title: 'Still editable',
+				reference,
+				requestId: randomUUID(),
+			},
+			azure,
+			new AbortController().signal,
+		);
+		expect(first().title).toBe('Still editable');
+		expect(verify).toHaveBeenCalledTimes(1);
+	});
+	it('SET-008 does not commit a new reference authorized against a superseded selection', async () => {
+		const azure = new Azure(store, configuration({}));
+		vi.spyOn(azure, 'verify').mockImplementation(async () => {
+			writeSettings(store, readSettings(store, 'vertigis'));
+			return { available: true, checkedAt: new Date().toISOString() };
+		});
+		await expect(
+			mutateTodoWithReference(
+				store,
+				{
+					kind: 'create',
+					title: 'Not committed',
+					requestId: randomUUID(),
+					reference: {
+						kind: 'workItem',
+						organization: 'vertigis',
+						project: 'Utilities',
+						id: 1,
+					},
+				},
+				azure,
+				new AbortController().signal,
+			),
+		).rejects.toThrow('sources changed');
+		expect(readTodos(store).items).toEqual([]);
+		expect(store.db.select().from(receipts).all()).toEqual([]);
 	});
 	it('AI-007 approves only an exact, unexpired version and never reuses an approval', () => {
 		create();

@@ -1,5 +1,4 @@
 'use client';
-import Link from 'next/link';
 import type { DashboardState } from '../../lib/contracts';
 /** Stable scope identity plus supplementary display color; names remain authoritative. */
 export type LegendEntry = { id: string; label: string; color: string };
@@ -35,7 +34,7 @@ export function ScopeLabel({ entry }: { entry: LegendEntry }) {
 	);
 }
 /** Noninteractive repository/team legends with explicit unavailable and unsynchronized states. */
-export function DashboardSidebar({
+export function DashboardLegends({
 	state,
 	repositories,
 	boards,
@@ -45,49 +44,39 @@ export function DashboardSidebar({
 	boards: LegendEntry[];
 }) {
 	let boardStatus = 'Team boards not synchronized yet.';
-	if (state.ado.boardScopes.some((scope) => scope.error)) {
+	if (!state.ado.selection.boards) {
+		boardStatus = 'No Work Item Sources selected. Choose sources in Settings.';
+	} else if (state.ado.boardScopes.some((scope) => scope.error)) {
 		boardStatus = 'Team board mapping unavailable.';
 	} else if (state.ado.boardScopes.some((scope) => scope.successAt && !scope.stale)) {
-		boardStatus = 'No team boards in your memberships.';
+		boardStatus = 'Selected teams have no area scopes.';
 	}
 	return (
-		<aside className="sidebar">
-			<Link className="brand" href="/">
-				<span className="logo">D</span> DevDesk
-			</Link>
-			<p className="eyebrow mt-8">Workspace</p>
-			<div className="nav-item">Overview</div>
-			<div className="scope-legends">
-				<section aria-label="PR repository legend">
-					<h2 className="eyebrow">PR repositories</h2>
-					<ul className="space-y-2">
-						{repositories.map((entry) => (
-							<li key={entry.id}>
-								<ScopeLabel entry={entry} />
-							</li>
-						))}
-					</ul>
-				</section>
-				<section aria-label="Team board legend">
-					<h2 className="eyebrow">My team boards</h2>
-					<ul className="space-y-2">
-						{boards.map((entry) => (
-							<li key={entry.id}>
-								<ScopeLabel entry={entry} />
-							</li>
-						))}
-					</ul>
-					{!boards.length && <p className="text-xs">{boardStatus}</p>}
-					<p className="mt-3 text-[10px]">
-						Area-path scopes, not board columns. Multiple matches are shown.
-					</p>
-				</section>
-			</div>
-			<p className="mt-8 text-xs">
-				Local workspace
-				<br />
-				Stored on your machine
-			</p>
-		</aside>
+		<div className="scope-legends">
+			<section aria-label="PR repository legend">
+				<h2 className="eyebrow">PR repositories</h2>
+				<ul className="space-y-2">
+					{repositories.map((entry) => (
+						<li key={entry.id}>
+							<ScopeLabel entry={entry} />
+						</li>
+					))}
+				</ul>
+			</section>
+			<section aria-label="Team board legend">
+				<h2 className="eyebrow">Work Item Sources</h2>
+				<ul className="space-y-2">
+					{boards.map((entry) => (
+						<li key={entry.id}>
+							<ScopeLabel entry={entry} />
+						</li>
+					))}
+				</ul>
+				{!boards.length && <p className="text-xs">{boardStatus}</p>}
+				<p className="mt-3 text-[10px]">
+					Area-path scopes, not board columns. Multiple matches are shown.
+				</p>
+			</section>
+		</div>
 	);
 }

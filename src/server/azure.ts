@@ -1,5 +1,13 @@
 import { z } from 'zod';
-import { boardScopeSchema, referenceSchema, referenceUrl, workSchema } from '../lib/contracts';
+import {
+	matchesBoardArea,
+	prViewSchema,
+	referenceSchema,
+	referenceUrl,
+	swimlaneScopeSchema,
+	teamBoardSchema,
+	workSchema,
+} from '../lib/contracts';
 import type {
 	BoardScope,
 	PullRequest,
@@ -10,11 +18,20 @@ import type {
 	WorkItem,
 } from '../lib/contracts';
 import type { Configuration } from './config';
-import { initialRepositories } from './config';
+import {
+	saveSettingsSchema,
+	sourceSchema,
+	type SaveSettings,
+	type Source,
+	type SourceSettings,
+} from '../lib/contracts/settings';
+import { discoverSources, resolveSource } from './azure-discovery';
+import { readSettings, writeSettings } from './settings';
 import { AppError, log, safeError } from './errors';
 import { snapshots } from './schema';
 import { meta, setMeta, type Store } from './store';
 import { requestAzure, type AzureRequestOptions } from './azure-http';
+import { loadSwimlanes } from './azure-swimlanes';
 
 const object = z.record(z.string(), z.unknown());
 const collection = z.object({ value: z.array(object) });
@@ -34,6 +51,12 @@ const prSchema = z.object({
 	reviewers: z.array(identity),
 });
 type RawPr = z.infer<typeof prSchema>;
+const teamMappingSchema = z.object({
+	board: teamBoardSchema,
+	successAt: z.string().nullable(),
+	error: z.string().nullable(),
+});
+const swimlaneMappingSchema = swimlaneScopeSchema.omit({ stale: true });
 
 /**
  * Applies personal/group review semantics: personal non-approval takes precedence;
@@ -63,14 +86,12 @@ export function needsReview(pr: RawPr, userId: string, groups: Set<string>) {
 
 /** Owns scoped read-only synchronization, independent last-good caches, and reference validation. */
 export class Azure {
-	/** Configured repositories, initially fallback labels and later resolved display identities. */
-	repositories: Repository[] = initialRepositories;
-	private projects = new Map<string, { id: string; name: string }>();
 	private timer: ReturnType<typeof setTimeout> | undefined;
 	private active: Promise<void> | undefined;
 	private abort: AbortController | undefined;
 	private stopped = false;
 	private userId: string | undefined;
+	private refreshAgain = false;
 	/** Retains injected dependencies without I/O; refresh starts work and stop ends scheduling. */
 	constructor(
 		private store: Store,
@@ -80,6 +101,109 @@ export class Azure {
 	/** True while a full refresh is active, including concurrent callers sharing that refresh. */
 	get running() {
 		return Boolean(this.active);
+	}
+	/** Current durable selection, independent of connection availability. */
+	get selection() {
+		const selection = readSettings(this.store, this.config.adoOrganization);
+		for (const kind of ['boards', 'repositories'] as const) {
+			selection[kind] = selection[kind].map((source) => {
+				const cached = meta(this.store, this.scopeKey(`source:${kind}:${source.id}`));
+				if (!cached) {
+					return source;
+				}
+				const resolved = sourceSchema.parse(JSON.parse(cached));
+				return resolved.id === source.id && resolved.projectId === source.projectId
+					? resolved
+					: source;
+			});
+		}
+		return selection;
+	}
+	/** Selected repository labels survive restart and unavailable-source failures. */
+	get repositories(): Repository[] {
+		return this.selection.repositories.map(({ id, project, name }) => ({ id, project, name }));
+	}
+	private workProjects() {
+		return [
+			...new Map(this.selection.boards.map((source) => [source.projectId, source])).values(),
+		];
+	}
+	/** Rejects superseded async results before they can expose data or commit a mutation. */
+	assertRevision(revision: number) {
+		if (this.stopped || this.selection.revision !== revision) {
+			throw new AppError(
+				'SETTINGS_CHANGED',
+				'Azure DevOps sources changed. Retry with the current selection.',
+				409,
+			);
+		}
+	}
+	/** Loads catalog metadata only; discovery never changes enabled sources. */
+	discover(signal: AbortSignal) {
+		this.settings();
+		return discoverSources(
+			(path, options) => this.request(path, options),
+			AbortSignal.any([signal, AbortSignal.timeout(120000)]),
+		);
+	}
+	/** Validates additions outside the transaction and atomically saves both source lists. */
+	async saveSelection(input: SaveSettings, signal: AbortSignal) {
+		const command = saveSettingsSchema.parse(input);
+		const previous = this.selection;
+		this.assertRevision(command.revision);
+		const deadline = AbortSignal.any([signal, AbortSignal.timeout(120000)]);
+		const next: SourceSettings = { ...previous, boards: [], repositories: [] };
+		const mappings: { source: Source; board: TeamBoard }[] = [];
+		const additions: { kind: 'boards' | 'repositories'; source: Source }[] = [];
+		for (const kind of ['boards', 'repositories'] as const) {
+			for (const identity of command[kind]) {
+				const retained = previous[kind].find(
+					(source) =>
+						source.id === identity.id && source.projectId === identity.projectId,
+				);
+				if (retained) {
+					next[kind].push(retained);
+					continue;
+				}
+				const source = await resolveSource(
+					(path, options) => this.request(path, options),
+					kind,
+					identity,
+					deadline,
+				);
+				if (kind === 'boards') {
+					mappings.push({ source, board: await this.teamAreas(source, deadline) });
+				}
+				next[kind].push(source);
+				additions.push({ kind, source });
+			}
+		}
+		this.assertRevision(command.revision);
+		if (deadline.aborted) {
+			throw new AppError('CANCELLED', 'Settings save was cancelled.', 409);
+		}
+		const committed = this.store.db.transaction(() => {
+			const result = writeSettings(this.store, next);
+			for (const { source, board } of mappings) {
+				this.saveTeam(source, board, null);
+			}
+			for (const { kind, source } of additions) {
+				setMeta(
+					this.store,
+					this.scopeKey(`source:${kind}:${source.id}`),
+					JSON.stringify(source),
+				);
+			}
+			return result;
+		});
+		if (this.config.ado) {
+			if (this.active) {
+				this.refreshAgain = true;
+			} else {
+				void this.refresh();
+			}
+		}
+		return committed;
 	}
 	private settings() {
 		if (!this.config.ado) {
@@ -91,7 +215,7 @@ export class Azure {
 		return requestAzure(this.settings(), path, options, this.transport);
 	}
 	private scopeKey(scope: string) {
-		return `${this.config.ado?.org.toLowerCase() ?? 'vertigis'}:${scope}`;
+		return `${this.config.adoOrganization.toLowerCase()}:${scope}`;
 	}
 	private save(scope: string, dataset: Snapshot['dataset'], data: WorkItem[] | PullRequest[]) {
 		scope = this.scopeKey(scope);
@@ -130,9 +254,12 @@ export class Azure {
 		if (!cfg) {
 			return [];
 		}
+		const projects = this.workProjects();
+		const boards = this.readBoards();
+		const repositories = this.repositories;
 		const scopes = new Set([
-			...cfg.projects.map((project) => this.scopeKey(`work:${project}`)),
-			...cfg.repositoryIds.flatMap((id) => [
+			...projects.map((project) => this.scopeKey(`work:${project.projectId}`)),
+			...repositories.flatMap(({ id }) => [
 				this.scopeKey(`own:${id}`),
 				this.scopeKey(`reviews:${id}`),
 			]),
@@ -142,18 +269,49 @@ export class Azure {
 			.from(snapshots)
 			.all()
 			.filter((row) => scopes.has(row.scope))
-			.map((row) => ({
-				...row,
-				dataset: z.enum(['work', 'reviews', 'own']).parse(row.dataset),
-				data:
-					row.dataset === 'work'
-						? z.array(workSchema).parse(JSON.parse(row.data))
-						: (JSON.parse(row.data) as PullRequest[]),
-				stale:
-					Boolean(row.error) ||
-					!row.successAt ||
-					Date.now() - Date.parse(row.successAt) > cfg.interval * 2000,
-			}));
+			.map((row) => {
+				const project = projects.find(
+					(project) => row.scope === this.scopeKey(`work:${project.projectId}`),
+				);
+				const mapping = boards.find((scope) => scope.project === project?.project);
+				return {
+					...row,
+					dataset: z.enum(['work', 'reviews', 'own']).parse(row.dataset),
+					data:
+						row.dataset === 'work'
+							? z
+									.array(workSchema)
+									.parse(JSON.parse(row.data))
+									.filter((item) => {
+										const areaPath = item.areaPath;
+										return (
+											areaPath !== null &&
+											Boolean(
+												mapping?.boards.some((board) =>
+													board.areas.some((area) =>
+														matchesBoardArea(areaPath, area),
+													),
+												),
+											)
+										);
+									})
+							: z
+									.array(prViewSchema)
+									.parse(JSON.parse(row.data))
+									.filter((item) =>
+										repositories.some(
+											(repo) =>
+												repo.id === item.repositoryId &&
+												repo.project.toLowerCase() ===
+													item.project.toLowerCase(),
+										),
+									),
+					stale:
+						Boolean(row.error || mapping?.stale) ||
+						!row.successAt ||
+						Date.now() - Date.parse(row.successAt) > cfg.interval * 2000,
+				};
+			});
 	}
 	/** Reads local team mappings, distinguishing never synchronized from a successful empty mapping. */
 	readBoards(): BoardScope[] {
@@ -161,104 +319,111 @@ export class Azure {
 		if (!cfg) {
 			return [];
 		}
-		return cfg.projects.map((project) => {
-			const saved = meta(this.store, this.scopeKey(`boards:${project}`));
-			const scope = saved
-				? boardScopeSchema.parse(JSON.parse(saved))
-				: { project, boards: [], successAt: null, error: null, stale: true };
+		const sources = this.selection.boards;
+		return this.workProjects().map((project) => {
+			const mappings = sources
+				.filter((source) => source.projectId === project.projectId)
+				.map((source) => {
+					const saved = meta(
+						this.store,
+						this.scopeKey(`team:${source.projectId}:${source.id}`),
+					);
+					return saved
+						? teamMappingSchema.parse(JSON.parse(saved))
+						: {
+								board: { id: source.id, name: source.name, areas: [] },
+								successAt: null,
+								error: 'Selected team scope has not been synchronized.',
+							};
+				});
+			const successes = mappings
+				.flatMap((mapping) => (mapping.successAt ? [mapping.successAt] : []))
+				.sort();
+			const successAt = successes[0] ?? null;
+			const error =
+				mappings
+					.map((mapping) => mapping.error)
+					.filter(Boolean)
+					.join(' ') || null;
 			return {
-				...scope,
+				project: project.project,
+				boards: mappings.map((mapping) => mapping.board),
+				swimlanes: Object.fromEntries(
+					sources
+						.filter((source) => source.projectId === project.projectId)
+						.map((source) => {
+							const saved = meta(
+								this.store,
+								this.scopeKey(`swimlanes:${source.projectId}:${source.id}`),
+							);
+							const mapping = saved
+								? swimlaneMappingSchema.parse(JSON.parse(saved))
+								: {
+										boards: [],
+										itemIds: [],
+										successAt: null,
+										error: 'Swimlane mapping has not been synchronized.',
+									};
+							return [
+								source.id,
+								{
+									...mapping,
+									stale:
+										Boolean(mapping.error) ||
+										!mapping.successAt ||
+										Date.now() - Date.parse(mapping.successAt) >
+											cfg.interval * 2000,
+								},
+							];
+						}),
+				),
+				successAt,
+				error,
 				stale:
-					Boolean(scope.error) ||
-					!scope.successAt ||
-					Date.now() - Date.parse(scope.successAt) > cfg.interval * 2000,
+					Boolean(error) ||
+					!successAt ||
+					Date.now() - Date.parse(successAt) > cfg.interval * 2000,
 			};
 		});
 	}
-	private async syncBoards(
-		configured: string,
-		project: { id: string; name: string },
-		signal: AbortSignal,
-	) {
-		const key = this.scopeKey(`boards:${configured}`);
-		try {
-			const boards: TeamBoard[] = [];
-			const seen = new Set<string>();
-			for (let page = 0; page < 20; page++) {
-				const response = await this.request(
-					`_apis/projects/${project.id}/teams?$mine=true&$top=100&$skip=${page * 100}`,
-					{ signal },
-				);
-				const teams = z
-					.array(z.object({ id: z.uuid(), name: z.string().min(1) }))
-					.parse(response.data.value);
-				if (response.continuation) {
-					throw new AppError(
-						'INCOMPLETE',
-						'Team paging returned an unsupported continuation.',
-						502,
-					);
-				}
-				for (const team of teams) {
-					if (seen.has(team.id)) {
-						throw new AppError('INCOMPLETE', 'Team paging did not advance.', 502);
-					}
-					seen.add(team.id);
-					const settings = z
-						.object({
-							field: z.object({ referenceName: z.literal('System.AreaPath') }),
-							values: z.array(
-								z.object({
-									value: z.string().min(1),
-									includeChildren: z.boolean(),
-								}),
-							),
-						})
-						.parse(
-							(
-								await this.request(
-									`${project.id}/${team.id}/_apis/work/teamsettings/teamfieldvalues`,
-									{ signal },
-								)
-							).data,
-						);
-					boards.push({
-						...team,
-						areas: settings.values.map((area) => ({
-							path: area.value,
-							includeChildren: area.includeChildren,
-						})),
-					});
-				}
-				if (teams.length < 100) {
-					setMeta(
-						this.store,
-						key,
-						JSON.stringify({
-							project: project.name,
-							boards,
-							successAt: new Date().toISOString(),
-							error: null,
-							stale: false,
-						}),
-					);
-					return;
-				}
-			}
-			throw new AppError('INCOMPLETE', 'Team paging reached its safety limit.', 502);
-		} catch (error) {
-			const safe = safeError(error);
-			const saved = meta(this.store, key);
-			log('ado.board_scopes_failed', 'error', { scope: key, code: safe.code });
-			const previous = saved
-				? boardScopeSchema.parse(JSON.parse(saved))
-				: { project: project.name, boards: [], successAt: null };
-			setMeta(
-				this.store,
-				key,
-				JSON.stringify({ ...previous, error: safe.message, stale: true }),
+	private async teamAreas(source: Source, signal: AbortSignal): Promise<TeamBoard> {
+		const data = z
+			.object({
+				field: z.object({ referenceName: z.literal('System.AreaPath') }),
+				values: z.array(
+					z.object({ value: z.string().min(1), includeChildren: z.boolean() }),
+				),
+			})
+			.parse(
+				(
+					await this.request(
+						`${source.projectId}/${source.id}/_apis/work/teamsettings/teamfieldvalues`,
+						{ signal },
+					)
+				).data,
 			);
-		}
+		return {
+			id: source.id,
+			name: source.name,
+			areas: data.values.map((value) => ({
+				path: value.value,
+				includeChildren: value.includeChildren,
+			})),
+		};
+	}
+	private saveTeam(source: Source, board: TeamBoard, error: string | null) {
+		const key = this.scopeKey(`team:${source.projectId}:${source.id}`);
+		const saved = meta(this.store, key);
+		const previous = saved ? teamMappingSchema.parse(JSON.parse(saved)) : undefined;
+		setMeta(
+			this.store,
+			key,
+			JSON.stringify({
+				board: error ? (previous?.board ?? board) : board,
+				successAt: error ? (previous?.successAt ?? null) : new Date().toISOString(),
+				error,
+			}),
+		);
 	}
 	/**
 	 * Coalesces concurrent refreshes under one 120s deadline, then schedules the next interval.
@@ -273,13 +438,20 @@ export class Azure {
 		}
 		clearTimeout(this.timer);
 		this.abort = new AbortController();
-		this.active = this.sync(AbortSignal.any([this.abort.signal, AbortSignal.timeout(120000)]))
+		const selection = this.selection;
+		this.active = this.sync(
+			selection,
+			AbortSignal.any([this.abort.signal, AbortSignal.timeout(120000)]),
+		)
 			.catch((error: unknown) => {
-				const cfg = this.settings();
-				for (const project of cfg.projects) {
-					this.fail(`work:${project}`, 'work', error);
+				if (this.selection.revision !== selection.revision) {
+					log('ado.refresh_superseded', 'info');
+					return;
 				}
-				for (const id of cfg.repositoryIds) {
+				for (const { projectId } of selection.boards) {
+					this.fail(`work:${projectId}`, 'work', error);
+				}
+				for (const { id } of selection.repositories) {
 					this.fail(`own:${id}`, 'own', error);
 					this.fail(`reviews:${id}`, 'reviews', error);
 				}
@@ -287,6 +459,11 @@ export class Azure {
 			.finally(() => {
 				this.active = undefined;
 				if (!this.stopped) {
+					if (this.refreshAgain) {
+						this.refreshAgain = false;
+						void this.refresh();
+						return;
+					}
 					this.timer = setTimeout(() => {
 						void this.refresh();
 					}, this.settings().interval * 1000);
@@ -380,19 +557,29 @@ export class Azure {
 		}
 		return groups;
 	}
-	private async work(project: string, signal: AbortSignal): Promise<WorkItem[]> {
+	private async work(
+		project: Source,
+		areas: TeamBoard['areas'],
+		signal: AbortSignal,
+	): Promise<WorkItem[]> {
+		if (!areas.length) {
+			return [];
+		}
+		const areaQuery = areas
+			.map(
+				(area) =>
+					`[System.AreaPath] ${area.includeChildren ? 'UNDER' : '='} '${area.path.replaceAll("'", "''")}'`,
+			)
+			.join(' OR ');
 		const items: WorkItem[] = [];
 		let after = 0;
 		for (let page = 0; page < 200; page++) {
-			const result = await this.request(
-				`${encodeURIComponent(project)}/_apis/wit/wiql?$top=1000`,
-				{
-					signal,
-					body: {
-						query: `SELECT [System.Id] FROM WorkItems WHERE [System.TeamProject] = @project AND [System.AssignedTo] = @Me AND [System.Id] > ${after} ORDER BY [System.Id]`,
-					},
+			const result = await this.request(`${project.projectId}/_apis/wit/wiql?$top=1000`, {
+				signal,
+				body: {
+					query: `SELECT [System.Id] FROM WorkItems WHERE [System.TeamProject] = @project AND [System.AssignedTo] = @Me AND (${areaQuery}) AND [System.Id] > ${after} ORDER BY [System.Id]`,
 				},
-			);
+			});
 			const ids = z
 				.array(z.object({ id: z.number().int().positive() }))
 				.parse(result.data.workItems)
@@ -404,10 +591,22 @@ export class Azure {
 				const batch = ids.slice(offset, offset + 200);
 				const values = collection.parse(
 					(
-						await this.request(
-							`${encodeURIComponent(project)}/_apis/wit/workitemsbatch`,
-							{ signal, body: { ids: batch, errorPolicy: 'Fail' } },
-						)
+						await this.request(`${project.projectId}/_apis/wit/workitemsbatch`, {
+							signal,
+							body: {
+								ids: batch,
+								errorPolicy: 'Fail',
+								fields: [
+									'System.Title',
+									'System.WorkItemType',
+									'System.State',
+									'Microsoft.VSTS.Common.Priority',
+									'System.AreaPath',
+									'System.AssignedTo',
+									'System.TeamProject',
+								],
+							},
+						})
 					).data,
 				).value;
 				if (values.length !== batch.length) {
@@ -417,12 +616,37 @@ export class Azure {
 						502,
 					);
 				}
+				const returned = new Set<number>();
 				for (const value of values) {
 					const fields = object.parse(value.fields);
-					const id = z.number().parse(value.id);
+					const id = z.number().int().positive().parse(value.id);
+					if (!batch.includes(id) || returned.has(id)) {
+						throw new AppError(
+							'INCOMPLETE',
+							'Work-item batch identities did not match the query.',
+							502,
+						);
+					}
+					returned.add(id);
+					const areaPath =
+						typeof fields['System.AreaPath'] === 'string'
+							? fields['System.AreaPath']
+							: null;
+					const assigned = identity.safeParse(fields['System.AssignedTo']);
+					if (
+						typeof fields['System.TeamProject'] !== 'string' ||
+						fields['System.TeamProject'].toLowerCase() !==
+							project.project.toLowerCase() ||
+						!areaPath ||
+						!areas.some((area) => matchesBoardArea(areaPath, area)) ||
+						!assigned.success ||
+						assigned.data.id !== this.userId
+					) {
+						continue;
+					}
 					items.push({
 						id,
-						project,
+						project: project.project,
 						title: z.string().parse(fields['System.Title']),
 						type: z.string().parse(fields['System.WorkItemType']),
 						state: z.string().parse(fields['System.State']),
@@ -430,14 +654,11 @@ export class Azure {
 							typeof fields['Microsoft.VSTS.Common.Priority'] === 'number'
 								? fields['Microsoft.VSTS.Common.Priority']
 								: null,
-						areaPath:
-							typeof fields['System.AreaPath'] === 'string'
-								? fields['System.AreaPath']
-								: null,
+						areaPath,
 						url: this.url({
 							kind: 'workItem',
 							organization: this.settings().org,
-							project,
+							project: project.project,
 							id,
 						}),
 					});
@@ -470,82 +691,165 @@ export class Azure {
 		}
 		throw new AppError('INCOMPLETE', 'PR paging reached its safety limit.', 502);
 	}
-	private async sync(signal: AbortSignal) {
+	private async sync(selection: SourceSettings, signal: AbortSignal) {
+		if (!selection.boards.length && !selection.repositories.length) {
+			return;
+		}
 		const cfg = this.settings();
-		const connected = z
-			.object({ authenticatedUser: z.object({ id: z.uuid() }) })
-			.parse(
-				(
-					await this.request(
-						'_apis/connectionData?connectOptions=0&api-version=7.1-preview.1',
-						{ signal },
-					)
-				).data,
-			);
-		this.userId = connected.authenticatedUser.id;
+		const userId = await this.identify(signal);
+		this.assertRevision(selection.revision);
 		let groupIds: Set<string> | undefined;
 		let groupError: unknown;
-		try {
-			groupIds = await this.groups(signal);
-		} catch (error) {
-			groupError = error;
+		if (selection.repositories.length || cfg.email) {
+			try {
+				groupIds = await this.groups(signal);
+			} catch (error) {
+				groupError = error;
+			}
 		}
 		if (cfg.email && groupError) {
 			throw groupError;
 		}
-		const boardProjects: { configured: string; project: { id: string; name: string } }[] = [];
-		for (const configured of cfg.projects) {
+		for (const selected of selection.boards) {
 			try {
-				const project = z.object({ id: z.uuid(), name: z.string() }).parse(
-					(
-						await this.request(`_apis/projects/${encodeURIComponent(configured)}`, {
-							signal,
-						})
-					).data,
+				const source = await resolveSource(
+					(path, options) => this.request(path, options),
+					'boards',
+					selected,
+					signal,
 				);
-				this.projects.set(configured, project);
-				boardProjects.push({ configured, project });
-				this.save(`work:${configured}`, 'work', await this.work(project.name, signal));
+				const board = await this.teamAreas(source, signal);
+				this.assertRevision(selection.revision);
+				setMeta(
+					this.store,
+					this.scopeKey(`source:boards:${source.id}`),
+					JSON.stringify(source),
+				);
+				this.saveTeam(source, board, null);
 			} catch (error) {
-				this.fail(`work:${configured}`, 'work', error);
+				this.assertRevision(selection.revision);
+				this.saveTeam(
+					selected,
+					{ id: selected.id, name: selected.name, areas: [] },
+					safeError(error).message,
+				);
 			}
 		}
-		const repositories: Repository[] = [];
-		for (const id of cfg.repositoryIds) {
+		const projectItems = new Map<string, WorkItem[]>();
+		for (const project of this.workProjects()) {
 			try {
-				const repo = z
-					.object({
-						id: z.uuid(),
-						name: z.string(),
-						isDisabled: z.boolean().optional(),
-						project: z.object({ id: z.uuid(), name: z.string() }),
-					})
-					.parse((await this.request(`_apis/git/repositories/${id}`, { signal })).data);
-				if (
-					repo.isDisabled ||
-					![...this.projects.values()].some((project) => project.id === repo.project.id)
-				) {
+				const mapping = this.readBoards().find(
+					(scope) => scope.project === project.project,
+				);
+				if (!mapping?.successAt) {
 					throw new AppError(
-						'SCOPE',
-						'Selected repository is disabled, inaccessible, or outside configured projects.',
-						502,
+						'SCOPE_UNAVAILABLE',
+						mapping?.error ?? 'Selected team scope is unavailable.',
+						503,
 					);
 				}
-				const normalized = { id, name: repo.name, project: repo.project.name };
-				repositories.push(normalized);
+				const items = await this.work(
+					project,
+					mapping.boards.flatMap((board) => board.areas),
+					signal,
+				);
+				this.assertRevision(selection.revision);
+				this.save(`work:${project.projectId}`, 'work', items);
+				projectItems.set(project.projectId, items);
+				if (mapping.error) {
+					this.fail(
+						`work:${project.projectId}`,
+						'work',
+						new AppError('SCOPE_UNAVAILABLE', mapping.error, 503),
+					);
+				}
+			} catch (error) {
+				this.assertRevision(selection.revision);
+				this.fail(`work:${project.projectId}`, 'work', error);
+			}
+		}
+		for (const source of selection.boards) {
+			const key = this.scopeKey(`swimlanes:${source.projectId}:${source.id}`);
+			try {
+				const items = projectItems.get(source.projectId);
+				if (!items) {
+					throw new AppError(
+						'SCOPE_UNAVAILABLE',
+						'Swimlane refresh requires successfully synchronized work items.',
+						503,
+					);
+				}
+				const currentSource = this.selection.boards.find(
+					(selected) =>
+						selected.id === source.id && selected.projectId === source.projectId,
+				);
+				const board = this.readBoards()
+					.find((scope) => scope.project === currentSource?.project)
+					?.boards.find((board) => board.id === source.id);
+				const eligible = items.filter((item) => {
+					const areaPath = item.areaPath;
+					return (
+						areaPath && board?.areas.some((area) => matchesBoardArea(areaPath, area))
+					);
+				});
+				const boards = await loadSwimlanes(
+					(path, options) => this.request(path, options),
+					source,
+					eligible,
+					signal,
+				);
+				this.assertRevision(selection.revision);
+				setMeta(
+					this.store,
+					key,
+					JSON.stringify({
+						boards,
+						itemIds: eligible.map((item) => item.id),
+						successAt: new Date().toISOString(),
+						error: null,
+					}),
+				);
+			} catch (error) {
+				this.assertRevision(selection.revision);
+				const safe = safeError(error);
+				log('ado.swimlanes_failed', 'error', { scope: key, code: safe.code });
+				const saved = meta(this.store, key);
+				const previous = saved
+					? swimlaneMappingSchema.parse(JSON.parse(saved))
+					: { boards: [], itemIds: [], successAt: null };
+				setMeta(this.store, key, JSON.stringify({ ...previous, error: safe.message }));
+			}
+		}
+		for (const selected of selection.repositories) {
+			const { id } = selected;
+			try {
+				const source = await resolveSource(
+					(path, options) => this.request(path, options),
+					'repositories',
+					selected,
+					signal,
+				);
+				this.assertRevision(selection.revision);
+				setMeta(
+					this.store,
+					this.scopeKey(`source:repositories:${id}`),
+					JSON.stringify(source),
+				);
+				const normalized = { id, name: source.name, project: source.project };
 				const rows = await this.pullRequests(normalized, signal);
+				this.assertRevision(selection.revision);
 				const convert = (pr: RawPr): PullRequest => ({
 					id: pr.pullRequestId,
 					title: pr.title,
-					project: repo.project.name,
+					project: source.project,
 					repositoryId: id,
-					repository: repo.name,
+					repository: source.name,
 					author: pr.createdBy.displayName ?? pr.createdBy.id,
 					draft: pr.isDraft ?? false,
 					url: this.url({
 						kind: 'pullRequest',
 						organization: cfg.org,
-						project: repo.project.name,
+						project: source.project,
 						repositoryId: id,
 						id: pr.pullRequestId,
 					}),
@@ -572,59 +876,56 @@ export class Azure {
 					this.save(
 						`reviews:${id}`,
 						'reviews',
-						rows
-							.filter((pr) =>
-								needsReview(pr, connected.authenticatedUser.id, groupIds),
-							)
-							.map(convert),
+						rows.filter((pr) => needsReview(pr, userId, groupIds)).map(convert),
 					);
 				} catch (error) {
 					this.fail(`reviews:${id}`, 'reviews', error);
 				}
 			} catch (error) {
+				this.assertRevision(selection.revision);
 				this.fail(`own:${id}`, 'own', error);
 				this.fail(`reviews:${id}`, 'reviews', error);
 			}
 		}
-		this.repositories = repositories;
-		for (const { configured, project } of boardProjects) {
-			await this.syncBoards(configured, project, signal);
-		}
+	}
+	private async identify(signal: AbortSignal) {
+		const connected = z
+			.object({ authenticatedUser: z.object({ id: z.uuid() }) })
+			.parse(
+				(
+					await this.request(
+						'_apis/connectionData?connectOptions=0&api-version=7.1-preview.1',
+						{ signal },
+					)
+				).data,
+			);
+		this.userId = connected.authenticatedUser.id;
+		return connected.authenticatedUser.id;
 	}
 	/**
-	 * Checks identity against the configured scope without network access.
-	 * Disabled integrations permit the initial offline scope; invalid configuration/scope throws.
+	 * Checks selected source identity locally; work-item area/assignment needs verify before use.
 	 */
 	validate(reference: Reference) {
-		if (
-			reference.organization.toLowerCase() !==
-			(this.config.ado?.org ?? 'vertigis').toLowerCase()
-		) {
+		if (reference.organization.toLowerCase() !== this.config.adoOrganization.toLowerCase()) {
 			throw new AppError('SCOPE', 'The reference is outside the configured organization.');
 		}
 		if (this.config.adoStatus.state === 'configuration_error') {
 			throw new AppError('ADO_CONFIG', this.config.adoStatus.message, 503);
 		}
-		const cfg = this.config.ado ?? {
-			projects: ['Utilities'],
-			repositoryIds: initialRepositories.map((repo) => repo.id),
-		};
-		if (
-			!cfg.projects.some(
-				(project) =>
-					project.toLowerCase() === reference.project.toLowerCase() ||
-					this.projects.get(project)?.name.toLowerCase() ===
-						reference.project.toLowerCase(),
-			)
-		) {
-			throw new AppError('SCOPE', 'The reference is outside the configured projects.');
+		const sources = this.selection[reference.kind === 'workItem' ? 'boards' : 'repositories'];
+		const source = sources.find(
+			(source) =>
+				(source.project.toLowerCase() === reference.project.toLowerCase() ||
+					source.projectId === reference.project.toLowerCase()) &&
+				(reference.kind === 'workItem' || source.id === reference.repositoryId),
+		);
+		if (!source) {
+			throw new AppError(
+				'SCOPE',
+				'The reference is outside the selected Azure DevOps sources.',
+			);
 		}
-		if (
-			reference.kind === 'pullRequest' &&
-			!cfg.repositoryIds.includes(reference.repositoryId)
-		) {
-			throw new AppError('SCOPE', 'The PR repository is not allowlisted.');
-		}
+		return source;
 	}
 	/** Parses scoped HTTPS work/PR links without fetching them; rejects credentials and unknown scope. */
 	parseUrl(input: string): Reference {
@@ -643,7 +944,7 @@ export class Azure {
 			url.port ||
 			url.username ||
 			url.password ||
-			org !== (this.config.ado?.org ?? 'vertigis') ||
+			org?.toLowerCase() !== this.config.adoOrganization.toLowerCase() ||
 			!project
 		) {
 			throw new AppError(
@@ -692,13 +993,13 @@ export class Azure {
 	 * invalid scope, unavailable objects, malformed responses, and paging limits throw.
 	 */
 	async detail(reference: Reference, signal: AbortSignal) {
-		this.validate(reference);
-		const project = encodeURIComponent(reference.project);
-		const path =
+		const authorized = await this.authorizedData(reference, signal);
+		const { path, revision } = authorized;
+		const data =
 			reference.kind === 'workItem'
-				? `${project}/_apis/wit/workitems/${reference.id}`
-				: `${project}/_apis/git/repositories/${reference.repositoryId}/pullrequests/${reference.id}`;
-		const data = (await this.request(path, { signal })).data;
+				? (await this.request(path, { signal })).data
+				: authorized.data;
+		this.assertRevision(revision);
 		this.validateObject(reference, data);
 		const discussions: unknown[] = [];
 		for (let page = 0, continuation = ''; page < 100; page++) {
@@ -708,6 +1009,8 @@ export class Azure {
 					: `${path}/threads`,
 				{ signal },
 			);
+			this.assertRevision(revision);
+			this.validate(reference);
 			const values =
 				reference.kind === 'workItem'
 					? z.array(object).parse(response.data.comments)
@@ -733,6 +1036,7 @@ export class Azure {
 					? response.data.continuationToken
 					: '');
 			if (!continuation) {
+				this.validateObject(reference, data);
 				const fields = reference.kind === 'workItem' ? object.parse(data.fields) : data;
 				const selected =
 					reference.kind === 'workItem'
@@ -753,6 +1057,9 @@ export class Azure {
 					url: this.url(reference),
 					fields: selected,
 					discussions,
+					scopeStale:
+						reference.kind === 'workItem' &&
+						this.readBoards().some((scope) => scope.stale),
 				});
 				return text.length > 24000
 					? {
@@ -766,17 +1073,32 @@ export class Azure {
 		throw new AppError('INCOMPLETE', 'Discussion paging reached its safety limit.', 502);
 	}
 	private validateObject(reference: Reference, data: Record<string, unknown>) {
-		const expected = this.projects.get(reference.project)?.name ?? reference.project;
+		const source = this.validate(reference);
 		if (reference.kind === 'workItem') {
 			const fields = object.parse(data.fields);
-			if (fields['System.TeamProject'] !== expected) {
-				throw new AppError('SCOPE', 'The work item belongs to another project.', 403);
+			const area = fields['System.AreaPath'];
+			const assigned = identity.safeParse(fields['System.AssignedTo']);
+			const scope = this.readBoards().find((scope) => scope.project === source.project);
+			if (
+				fields['System.TeamProject'] !== source.project ||
+				!assigned.success ||
+				assigned.data.id !== this.userId ||
+				typeof area !== 'string' ||
+				!scope?.boards.some((board) =>
+					board.areas.some((rule) => matchesBoardArea(area, rule)),
+				)
+			) {
+				throw new AppError(
+					'SCOPE',
+					'The work item is not assigned to you within a selected team area.',
+					403,
+				);
 			}
 		} else {
 			const repo = z
 				.object({ id: z.string(), project: z.object({ name: z.string() }) })
 				.parse(data.repository);
-			if (repo.id !== reference.repositoryId || repo.project.name !== expected) {
+			if (repo.id !== reference.repositoryId || repo.project.name !== source.project) {
 				throw new AppError(
 					'SCOPE',
 					'The PR belongs to another repository or project.',
@@ -785,14 +1107,32 @@ export class Azure {
 			}
 		}
 	}
-	/** Fetches the object to verify current access and actual scope, returning a UTC check timestamp. */
-	async verify(reference: Reference, signal: AbortSignal) {
-		this.validate(reference);
+	private async authorizedData(reference: Reference, signal: AbortSignal) {
+		const revision = this.selection.revision;
+		const source = this.validate(reference);
 		const path =
 			reference.kind === 'workItem'
-				? `${encodeURIComponent(reference.project)}/_apis/wit/workitems/${reference.id}`
-				: `${encodeURIComponent(reference.project)}/_apis/git/repositories/${reference.repositoryId}/pullrequests/${reference.id}`;
-		this.validateObject(reference, (await this.request(path, { signal })).data);
+				? `${source.projectId}/_apis/wit/workitems/${reference.id}`
+				: `${source.projectId}/_apis/git/repositories/${reference.repositoryId}/pullrequests/${reference.id}`;
+		if (reference.kind === 'workItem' && !this.userId) {
+			await this.identify(signal);
+		}
+		this.assertRevision(revision);
+		const data = (
+			await this.request(
+				reference.kind === 'workItem'
+					? `${path}?fields=System.TeamProject,System.AreaPath,System.AssignedTo`
+					: path,
+				{ signal },
+			)
+		).data;
+		this.assertRevision(revision);
+		this.validateObject(reference, data);
+		return { data, path, revision };
+	}
+	/** Fetches the object to verify current access and actual scope, returning a UTC check timestamp. */
+	async verify(reference: Reference, signal: AbortSignal) {
+		await this.authorizedData(reference, signal);
 		return { available: true, checkedAt: new Date().toISOString() };
 	}
 }

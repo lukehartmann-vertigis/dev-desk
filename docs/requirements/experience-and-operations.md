@@ -5,11 +5,10 @@ All active behavior and acceptance contracts below are approved in baseline v1.
 OPS-006 is explicitly deferred and does not gate MVP acceptance. Approval is not
 evidence that the UI, deployment, or tests already exist.
 
-The [proposed settings increment](settings.md) adds Settings navigation and
+The implemented [settings increment](settings.md) adds Settings navigation and
 SQLite-backed source selection, with empty initial scope instead of environment
 defaults. Credentials remain server-side; persisted settings join the existing
-backup boundary. It is not implemented and does not change the baseline
-descriptions below.
+backup boundary.
 
 ## Experience
 
@@ -32,7 +31,9 @@ Acceptance:
 - Use the user-provided clickdummy's visual hierarchy: left context rail, todos
   at the top of the main column, the tabbed DevOps panel, and right-hand chat.
 - There is no separate Daily Todos page or global repository filter.
-- Noninteractive legends show PR repositories and the PAT user's team-board
+- A dedicated Settings page selects application-wide sources with explicit
+  Save/Cancel and project-grouped lists; it is reachable on narrow screens too.
+- Noninteractive legends show selected PR repositories and readable team-board
   area scopes. Dots and row edges use consistent colors alongside textual
   labels. Multiple board matches are retained; unknown or stale mapping is
   explicit. Legends never hide PRs, work items, or local todos.
@@ -185,8 +186,11 @@ Acceptance:
 - An entirely unconfigured integration is explicitly disabled. A partially or
   invalidly configured integration has a visible configuration-error state; only
   that integration is blocked, not local todos or another valid integration.
-- Invalid Azure DevOps intervals/scope or Copilot model/state-path settings are
+- Invalid Azure DevOps connection/interval or Copilot model/state-path settings are
   attributed to the relevant integration, not silently defaulted or ignored.
+- SQLite-backed source selection is independent of connection configuration.
+  Empty selections are valid; legacy environment scope variables are deprecated
+  and ignored with explicit Settings warnings.
 - Expired credentials and unavailable upstream services are integration/runtime
   errors, distinct from absent/invalid configuration, and do not erase local data.
 - The UI and structured logs identify the affected integration and safe correction

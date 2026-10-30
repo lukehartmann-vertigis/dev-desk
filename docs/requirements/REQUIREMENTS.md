@@ -21,7 +21,7 @@ the integration allowlist or assigned-work selection; see
 This replaces the incomplete initial overview, whose MVP section was unfinished.
 The supplied read-only attachment remains unchanged.
 
-### Settings increment: approved concept, proposed contracts
+### Settings increment: approved and implemented
 
 On 2026-10-28 the user confirmed persistent, application-wide Azure DevOps board
 and repository selection, discovery across all PAT-accessible projects in one
@@ -31,10 +31,10 @@ project grouping without a separate project picker. See
 [settings requirements](settings.md) and
 [ADR-0015](../adr/0015-persisted-azure-devops-settings.md).
 
-Those documents distinguish the approved product concept from detailed contracts
-still proposed for review. The user requested documentation first, not implementation.
-The baseline tables below describe the existing release; its fixed scope and
-navigation rules are not silently replaced or claimed implemented here.
+The user requested documentation first, then explicitly authorized issue #1's
+implementation. SET-001 through SET-011 now supersede the fixed initial scope
+and add Settings navigation. Completed offline checks and remaining live PAT
+acceptance are recorded in the application report, not inferred from approval.
 
 ## 1. Product goal
 
@@ -89,9 +89,9 @@ The following details were subsequently confirmed, not inferred from the demo:
 | AI runs | One at a time, at most 120 seconds and 10 tool invocations; cancel further work on explicit cancel, disconnect, or tab closure |
 | Work-item states | Include all assigned states, including completed states |
 | Review visibility | Hide active PRs once the user approves or approves with suggestions; team/group review requests are included |
-| Initial workspace | Utilities project; PRs only from the explicitly selected network-locator and Utilities repositories |
+| Initial workspace | Empty Work Item Sources and Repositories, including upgrades; no legacy scope import |
 | Repository policy | Explicit allowlist, not automatic inclusion of every repository; multiple projects remain supported |
-| Work-item filtering | All assigned work items in configured projects; no team/board/area filter in the MVP |
+| Work-item filtering | Assigned work items within selected readable team-area scopes; repositories are independent |
 | Repository legends | Informational colored dots and matching row markers; no PR display filters |
 | ADO navigation | Three tabs with cached-item count bubbles, including zero; local keyboard-accessible switching with one visible view |
 | Context colors | Warm colors for work items/boards; separate cool colors for PRs/repositories, including tab accents and count bubbles |
@@ -188,7 +188,7 @@ running. It does not promise a usable UI when the local application is stopped.
 | AI-001 through AI-013 | [Assistant](assistant.md) |
 | UX-001 through UX-008 | [Experience](experience-and-operations.md#experience) |
 | OPS-001 through OPS-010 | [Operations and quality](experience-and-operations.md#operations-and-quality); OPS-006 is deferred |
-| SET-001 through SET-011 | [Azure DevOps settings](settings.md); proposed increment, not implemented |
+| SET-001 through SET-011 | [Azure DevOps settings](settings.md); approved and implemented increment |
 
 ## 6. Approved defaults and deferred work
 
@@ -219,9 +219,9 @@ No performance reference environment is required.
 | OPEN-04 | Demonstrate Copilot tool isolation, authentication, restart/resume, and complete local session cleanup | Offline native policy/session and fake-provider orchestration checks exist; real authentication, classification, and conversation/container recovery remain account-specific acceptance |
 | OPEN-05 | Verify actual Azure DevOps projects, identity, PAT read permissions, custom fields, and repository access | Real adapter implemented and contract-tested offline; actual app PAT remains account-specific acceptance |
 | OPEN-06 | Record performance reference hardware and benchmark fixture | Deferred with OPS-006 by user decision; not a P0, G0, or MVP release gate |
-| OPEN-07 | Repository selection and project/board/repo filter policy | Resolved: Utilities; network-locator and Utilities allowlist; informational repository/team-board legends instead of display filters; project-wide assigned work items |
+| OPEN-07 | Repository selection and project/board/repo filter policy | Superseded by SET/ADR-0015: persisted readable team-area and repository selection; projects only group choices; local chips remain presentation |
 | OPEN-08 | Verify complete group membership, nested/directory-group limitations, identity mapping, and read permissions | Product semantics and offline nested/cycle handling covered; actual account Graph visibility and reviewer parity remain live acceptance |
-| OPEN-09 | Review the settings increment's detailed contracts and authorize implementation | Product concept approved on 2026-10-28, including accessible teams and project grouping; detailed SET/ADR contracts remain proposed; no implementation authorized |
+| OPEN-09 | Review the settings increment's detailed contracts and authorize implementation | Resolved on 2026-10-28: issue #1 implementation explicitly authorized; offline delivery evidence is in the application report; live catalog/PAT acceptance remains separate |
 
 No secrets, real work-item content, or chat transcripts belong in this
 documentation. Integration experiments must use approved test data.

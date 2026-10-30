@@ -2,8 +2,32 @@ import { describe, expect, it, vi } from 'vitest';
 import { configuration } from './config';
 import { protect } from './http';
 import { AppError, safeError } from './errors';
+import { dashboardSchema } from '../lib/contracts';
 
 describe('configuration isolation and localhost boundary', () => {
+	it('SET-010 treats missing source counts as invalid transport, not a successful empty selection', () => {
+		const integration = { state: 'disabled', message: 'Not configured.', running: false };
+		const state = {
+			todos: { revision: 0, items: [] },
+			ado: {
+				...integration,
+				organization: 'example',
+				repositories: [],
+				boardScopes: [],
+				snapshots: [],
+			},
+			copilot: { ...integration, cleanupPending: false },
+			chat: [],
+			approvals: [],
+		};
+		expect(dashboardSchema.safeParse(state).success).toBe(false);
+		expect(
+			dashboardSchema.safeParse({
+				...state,
+				ado: { ...state.ado, selection: { revision: 0, boards: 0, repositories: 0 } },
+			}).success,
+		).toBe(true);
+	});
 	it('OPS-005 preserves trusted errors across independent server entry bundles', async () => {
 		vi.resetModules();
 		const { AppError: OtherAppError } = await import('./errors');
@@ -25,7 +49,7 @@ describe('configuration isolation and localhost boundary', () => {
 			logger.mockRestore();
 		}
 	});
-	it('OPS-003 disables absent integrations and requires only tokens for the selected workspace', () => {
+	it('OPS-003/SET-010 configures connections without implicitly selecting sources', () => {
 		const absent = configuration({});
 		expect(absent.adoStatus.state).toBe('disabled');
 		expect(absent.copilotStatus.state).toBe('disabled');
@@ -34,15 +58,16 @@ describe('configuration isolation and localhost boundary', () => {
 			COPILOT_GITHUB_TOKEN: 'synthetic',
 			DATABASE_PATH: '/data/dashboard.db',
 		});
-		expect(configured.ado?.projects).toEqual(['Utilities']);
-		expect(configured.ado?.repositoryIds).toHaveLength(2);
+		expect(configured.ado).toMatchObject({ org: 'vertigis', interval: 180 });
+		expect(configured.ado).not.toHaveProperty('projects');
+		expect(configured.ado).not.toHaveProperty('repositoryIds');
 		expect(configured.copilot?.model).toBe('gpt-4.1');
 		expect(configured.copilot?.statePath).toBe('/data/copilot');
 	});
 	it.each([
-		{ AZURE_DEVOPS_PROJECTS: '' },
 		{ AZURE_DEVOPS_PAT: 'test', SYNC_INTERVAL_SECONDS: '29' },
-		{ AZURE_DEVOPS_PAT: 'test', AZURE_DEVOPS_REPOSITORY_IDS: '' },
+		{ AZURE_DEVOPS_PAT: 'test', AZURE_DEVOPS_ORG: 'invalid/org' },
+		{ AZURE_DEVOPS_PAT: 'test', AZURE_DEVOPS_ORG: '' },
 	])('OPS-003 isolates invalid ADO settings %j', (env) => {
 		expect(configuration({ ...env, COPILOT_GITHUB_TOKEN: 'synthetic' }).adoStatus.state).toBe(
 			'configuration_error',
@@ -50,6 +75,17 @@ describe('configuration isolation and localhost boundary', () => {
 		expect(
 			configuration({ ...env, COPILOT_GITHUB_TOKEN: 'synthetic' }).copilotStatus.state,
 		).toBe('ready');
+		expect(configuration(env).adoOrganization.length).toBeGreaterThan(0);
+	});
+	it('SET-010 reports legacy scope variables as deprecated without treating empty lists as invalid', () => {
+		const config = configuration({
+			AZURE_DEVOPS_PAT: 'synthetic',
+			AZURE_DEVOPS_PROJECTS: '',
+			AZURE_DEVOPS_REPOSITORY_IDS: 'not-an-id',
+		});
+		expect(config.adoStatus.state).toBe('ready');
+		expect(config.adoWarnings).toHaveLength(2);
+		expect(config.adoWarnings.join(' ')).toContain('ignored');
 	});
 	it('OPS-003 rejects invalid core storage config rather than creating a replacement', () => {
 		expect(() => configuration({ DATABASE_PATH: '' })).toThrow();

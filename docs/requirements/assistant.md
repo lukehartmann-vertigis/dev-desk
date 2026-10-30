@@ -7,10 +7,10 @@ The real SDK adapter and offline tests are implemented; see the
 [application report](../verification/application.md) for results and remaining
 live account checks. Approval is not proof of those capabilities.
 
-The [proposed settings increment](settings.md) makes new Azure DevOps retrieval
+The implemented [settings increment](settings.md) makes new Azure DevOps retrieval
 and reference checks use persisted source selection. It does not add settings
 mutation tools, code access, or coding execution, and it does not erase
-historical chat context. The baseline below remains the implemented contract.
+historical chat context. Current-scope checks apply independently of old messages.
 
 ## AI-001 — Copilot integration
 

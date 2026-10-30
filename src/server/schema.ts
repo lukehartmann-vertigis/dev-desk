@@ -1,5 +1,14 @@
 import { integer, sqliteTable, text } from 'drizzle-orm/sqlite-core';
 import type { Reference } from '../lib/contracts';
+import type { Source } from '../lib/contracts/settings';
+
+/** Explicit source selection; no row enables nothing and never inherits environment defaults. */
+export const azureSettings = sqliteTable('azure_settings', {
+	organization: text().primaryKey(),
+	revision: integer().notNull(),
+	boards: text({ mode: 'json' }).$type<Source[]>().notNull(),
+	repositories: text({ mode: 'json' }).$type<Source[]>().notNull(),
+});
 
 /** Durable todos; completion retains identity and an optional typed ADO reference. */
 export const todos = sqliteTable('todos', {

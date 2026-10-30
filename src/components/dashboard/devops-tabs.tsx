@@ -1,4 +1,5 @@
 'use client';
+import Link from 'next/link';
 import { useId, useRef, useState } from 'react';
 import {
 	type BoardScope,
@@ -9,7 +10,7 @@ import {
 } from '../../lib/contracts';
 import { formatTimestamp } from '../../lib/format';
 import { ScopeLabel, type LegendEntry } from './scope-legend';
-import { groupDevOpsRows } from './devops-groups';
+import { groupDevOpsRows, groupWorkSwimlanes, type GroupedDevOpsRow } from './devops-groups';
 const devOpsTabs = [
 	{ dataset: 'work', label: 'Assigned work items' },
 	{ dataset: 'reviews', label: 'Review requests' },
@@ -50,7 +51,14 @@ export function DevOpsTabs({ state, repositories, boards }: DevOpsProps) {
 					const count = scopes.reduce((total, scope) => total + scope.data.length, 0);
 					const stale =
 						scopes.some((scope) => scope.stale) ||
-						(dataset === 'work' && state.ado.boardScopes.some((scope) => scope.stale));
+						(dataset === 'work' &&
+							state.ado.boardScopes.some(
+								(scope) =>
+									scope.stale ||
+									Object.values(scope.swimlanes ?? {}).some(
+										(lanes) => lanes.stale,
+									),
+							));
 					return (
 						<button
 							key={dataset}
@@ -150,9 +158,19 @@ function DevOpsPanel({
 	});
 	const selected = groups.find((group) => group.id === selection) ?? groups[0];
 	const visible = selected?.rows ?? [];
+	const swimlanes = state.ado.boardScopes
+		.flatMap((scope) => Object.entries(scope.swimlanes ?? {}))
+		.find(([teamId]) => teamId === selected?.id)?.[1];
+	const laneGroups = dataset === 'work' ? groupWorkSwimlanes(visible, swimlanes) : [];
 	let emptyMessage = 'No matching items in the successfully synchronized scopes.';
+	const noSources =
+		dataset === 'work'
+			? state.ado.selection.boards === 0
+			: state.ado.selection.repositories === 0;
 	if (state.ado.state !== 'ready') {
 		emptyMessage = 'Integration is not available.';
+	} else if (noSources) {
+		emptyMessage = 'No sources selected. Choose sources in Settings to get started.';
 	} else if (!scopes.length || scopes.every((scope) => !scope.successAt)) {
 		emptyMessage = 'Not synchronized yet.';
 	} else if (rows.length) {
@@ -216,45 +234,63 @@ function DevOpsPanel({
 					</div>
 				))}
 			{!visible.length && <p className="empty">{emptyMessage}</p>}
-			{visible.map(({ row, boardScope, markers }) => {
-				return (
-					<article
-						className="work-row"
-						key={`${row.project}:${'repositoryId' in row ? row.repositoryId : 'work'}:${row.id}`}
-					>
-						<div className="work-marker" aria-hidden="true">
-							{markers.map((entry) => (
-								<span key={entry.id} style={{ backgroundColor: entry.color }} />
+			{noSources && (
+				<p className="px-5 pb-4">
+					<Link href="/settings">Choose sources in Settings</Link>
+				</p>
+			)}
+			{dataset === 'work' ? (
+				<>
+					{swimlanes && (
+						<p className="px-5 pb-3 text-xs">
+							Swimlanes: {formatTimestamp(swimlanes.successAt)}
+						</p>
+					)}
+					{swimlanes?.stale && (
+						<p className="px-5 pb-3 text-xs text-amber-200">
+							Swimlane mapping stale or incomplete: showing last successfully saved
+							assignments where available.
+						</p>
+					)}
+					{swimlanes?.error && (
+						<p className="notice error mx-4 text-xs">
+							Swimlane mapping for {selected?.label}: {swimlanes.error}
+						</p>
+					)}
+					{laneGroups.map((group) => (
+						<details
+							key={`${selected?.id}:${group.id}`}
+							className="swimlane-group"
+							open
+						>
+							<summary>
+								<span className="swimlane-label">
+									{group.board && (
+										<span className="swimlane-board">{group.board} / </span>
+									)}
+									{group.label}
+								</span>{' '}
+								<span className="badge">
+									{group.rows.length}
+									<span className="sr-only">
+										{group.rows.length === 1 ? ' item' : ' items'}
+									</span>
+								</span>
+							</summary>
+							{group.rows.map((item) => (
+								<DevOpsRow key={item.row.id} item={item} />
 							))}
-						</div>
-						<div className="min-w-0 flex-1">
-							<div className="mb-2 flex flex-wrap gap-x-3 gap-y-1">
-								{markers.map((entry) => (
-									<ScopeLabel key={entry.id} entry={entry} />
-								))}
-							</div>
-							<a
-								className="font-medium"
-								href={row.url}
-								target="_blank"
-								rel="noopener noreferrer"
-							>
-								{'repositoryId' in row ? 'PR' : '#'}
-								{row.id} {row.title}
-							</a>
-							{'repositoryId' in row ? (
-								<PrMeta row={row} />
-							) : (
-								<WorkMeta
-									row={row}
-									scope={boardScope}
-									markerCount={markers.length}
-								/>
-							)}
-						</div>
-					</article>
-				);
-			})}
+						</details>
+					))}
+				</>
+			) : (
+				visible.map((item) => (
+					<DevOpsRow
+						key={`${item.row.project}:${'repositoryId' in item.row ? item.row.repositoryId : 'work'}:${item.row.id}`}
+						item={item}
+					/>
+				))
+			)}
 			<footer className="card-footer">
 				{!scopes.length
 					? 'Never synchronized'
@@ -285,6 +321,34 @@ function BoardScopeNotice({ scope }: { scope: BoardScope }) {
 		);
 	}
 	return null;
+}
+
+function DevOpsRow({ item: { row, boardScope, markers } }: { item: GroupedDevOpsRow }) {
+	return (
+		<article className="work-row">
+			<div className="work-marker" aria-hidden="true">
+				{markers.map((entry) => (
+					<span key={entry.id} style={{ backgroundColor: entry.color }} />
+				))}
+			</div>
+			<div className="min-w-0 flex-1">
+				<div className="mb-2 flex flex-wrap gap-x-3 gap-y-1">
+					{markers.map((entry) => (
+						<ScopeLabel key={entry.id} entry={entry} />
+					))}
+				</div>
+				<a className="font-medium" href={row.url} target="_blank" rel="noopener noreferrer">
+					{'repositoryId' in row ? 'PR' : '#'}
+					{row.id} {row.title}
+				</a>
+				{'repositoryId' in row ? (
+					<PrMeta row={row} />
+				) : (
+					<WorkMeta row={row} scope={boardScope} markerCount={markers.length} />
+				)}
+			</div>
+		</article>
+	);
 }
 
 function WorkMeta({
