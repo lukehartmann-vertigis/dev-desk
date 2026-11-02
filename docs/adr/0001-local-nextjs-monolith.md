@@ -12,7 +12,7 @@ important than independent service scaling.
 ## Decision
 
 Use TypeScript strict and Next.js fullstack on Node.js 24 LTS, deployed through
-Docker Compose on Linux/WSL2. Publish the web interface at localhost:3000 only.
+Docker Compose on Linux/WSL2. Publish the web interface at localhost:3100 only.
 Use one modular application, not separately deployed frontend/backend services.
 
 ## Alternatives considered

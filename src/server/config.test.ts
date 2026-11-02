@@ -5,6 +5,12 @@ import { AppError, safeError } from './errors';
 import { dashboardSchema } from '../lib/contracts';
 
 describe('configuration isolation and localhost boundary', () => {
+	it('OPS-001 defaults to port 3100 and preserves explicit origin overrides', () => {
+		expect(configuration({}).origin).toBe('http://localhost:3100');
+		expect(configuration({ APP_ORIGIN: 'http://localhost:3200' }).origin).toBe(
+			'http://localhost:3200',
+		);
+	});
 	it('SET-010 treats missing source counts as invalid transport, not a successful empty selection', () => {
 		const integration = { state: 'disabled', message: 'Not configured.', running: false };
 		const state = {
@@ -96,7 +102,7 @@ describe('configuration isolation and localhost boundary', () => {
 	});
 	it('OPS-002 permits only local same-origin JSON mutations with the application header', () => {
 		const request = (host: string, origin: string, marker = '1') =>
-			new Request('http://localhost:3000/api/todos', {
+			new Request('http://localhost:3100/api/todos', {
 				method: 'POST',
 				headers: {
 					host,
@@ -106,21 +112,24 @@ describe('configuration isolation and localhost boundary', () => {
 				},
 			});
 		expect(() =>
-			protect(request('localhost:3000', 'http://localhost:3000'), 'http://localhost:3000'),
+			protect(request('localhost:3100', 'http://localhost:3100'), 'http://localhost:3100'),
 		).not.toThrow();
 		expect(() =>
-			protect(request('127.0.0.1:3000', 'http://127.0.0.1:3000'), 'http://localhost:3000'),
+			protect(request('127.0.0.1:3100', 'http://127.0.0.1:3100'), 'http://localhost:3100'),
 		).not.toThrow();
 		expect(() =>
-			protect(request('evil.test:3000', 'http://localhost:3000'), 'http://localhost:3000'),
+			protect(request('evil.test:3100', 'http://localhost:3100'), 'http://localhost:3100'),
 		).toThrow('host');
 		expect(() =>
-			protect(request('localhost:3000', 'https://evil.test'), 'http://localhost:3000'),
+			protect(request('localhost:3100', 'https://evil.test'), 'http://localhost:3100'),
+		).toThrow('Cross-origin');
+		expect(() =>
+			protect(request('localhost:3100', 'http://localhost:3000'), configuration({}).origin),
 		).toThrow('Cross-origin');
 		expect(() =>
 			protect(
-				request('localhost:3000', 'http://localhost:3000', ''),
-				'http://localhost:3000',
+				request('localhost:3100', 'http://localhost:3100', ''),
+				'http://localhost:3100',
 			),
 		).toThrow('JSON');
 	});

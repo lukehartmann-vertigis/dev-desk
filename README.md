@@ -51,7 +51,7 @@ external database, or MCP server is needed.
     docker compose up -d --build --wait
     ```
 
-4. Open **http://localhost:3000**, then **Settings** to select **Work Item Sources**
+4. Open **http://localhost:3100**, then **Settings** to select **Work Item Sources**
    and **Repositories**. Save explicitly; both lists start empty, including after
    an upgrade. Either list may stay empty. Local todos work without any sources.
 
@@ -163,7 +163,7 @@ npm run build
 
 Default tests are offline. `npm run test:e2e` uses Playwright 1.64.1 and mutates
 records: point `DEVDESK_TEST_URL` at an **isolated running instance**, never your
-normal workspace. It defaults to `http://127.0.0.1:3000`.
+normal workspace. It defaults to `http://127.0.0.1:3100`.
 
 - [Architecture](docs/architecture.md): modules, persistence, and integration boundaries.
 - [Requirements](docs/requirements/REQUIREMENTS.md): todo, Azure DevOps, assistant, and UX contracts.

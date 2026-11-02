@@ -217,7 +217,7 @@ test('SET-003/004/010: the real settings API persists empty scope and rejects cr
 	const current = settingsResponseSchema.parse(await read.json());
 	const before = dashboardSchema.parse(await (await request.get('/api/state')).json());
 	const command = { revision: current.settings.revision, boards: [], repositories: [] };
-	const origin = new URL(process.env.DEVDESK_TEST_URL ?? 'http://127.0.0.1:3000').origin;
+	const origin = new URL(process.env.DEVDESK_TEST_URL ?? 'http://127.0.0.1:3100').origin;
 	const headers = {
 		Origin: origin,
 		'Content-Type': 'application/json',

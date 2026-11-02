@@ -19,5 +19,5 @@ ENV NODE_ENV=production NEXT_TELEMETRY_DISABLED=1 NEXT_MANUAL_SIG_HANDLE=1 DATAB
 COPY --from=build --chown=node:node /app /app
 RUN mkdir /data && chown node:node /data
 USER node
-EXPOSE 3000
-CMD ["node", "node_modules/next/dist/bin/next", "start", "--hostname", "0.0.0.0"]
+EXPOSE 3100
+CMD ["node", "node_modules/next/dist/bin/next", "start", "--hostname", "0.0.0.0", "--port", "3100"]

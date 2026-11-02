@@ -155,10 +155,10 @@ Acceptance:
 ### OPS-001 — Local deployment
 
 The application MUST run through Docker Compose on Linux/WSL2 and be accessible
-at `http://localhost:3000`.
+at `http://localhost:3100`.
 
 Acceptance:
-- Host publishing binds explicitly to `127.0.0.1:3000`, not all interfaces.
+- Host publishing binds explicitly to `127.0.0.1:3100`, not all interfaces.
 - One app container runs the long-lived Node server and managed Copilot runtime;
   SQLite and SDK state use persistent local storage.
 - No database server, queue, cloud hosting, or reverse proxy is required.

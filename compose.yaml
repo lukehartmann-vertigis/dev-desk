@@ -6,7 +6,7 @@ services:
         restart: unless-stopped
         stop_grace_period: 30s
         ports:
-            - '127.0.0.1:3000:3000'
+            - '127.0.0.1:3100:3100'
         env_file:
             - path: .env
               required: false
@@ -18,7 +18,7 @@ services:
                     'CMD',
                     'node',
                     '-e',
-                    "fetch('http://localhost:3000/api/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))",
+                    "fetch('http://localhost:3100/api/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))",
                 ]
             interval: 30s
             timeout: 5s

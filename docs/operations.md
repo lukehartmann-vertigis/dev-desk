@@ -1,7 +1,7 @@
 # Operations
 
 Run commands from the checkout directory using the same Compose project name
-as the installation. Keep one app replica bound to `127.0.0.1:3000`.
+as the installation. Keep one app replica bound to `127.0.0.1:3100`.
 See the [README](../README.md) for initial setup and token permissions.
 
 ## Health and Troubleshooting
@@ -9,7 +9,7 @@ See the [README](../README.md) for initial setup and token permissions.
 ```sh
 docker compose ps
 docker compose logs --tail=100 app
-curl --fail http://localhost:3000/api/health
+curl --fail http://localhost:3100/api/health
 ```
 
 Health reports local storage readiness and integration configuration separately.

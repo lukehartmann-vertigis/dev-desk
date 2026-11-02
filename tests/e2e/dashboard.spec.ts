@@ -6,7 +6,7 @@ import { syntheticRepositories } from './fixtures';
 const headers = {
 	'Content-Type': 'application/json',
 	'X-Devdesk-Request': '1',
-	Origin: new URL(process.env.DEVDESK_TEST_URL ?? 'http://127.0.0.1:3000').origin,
+	Origin: new URL(process.env.DEVDESK_TEST_URL ?? 'http://127.0.0.1:3100').origin,
 };
 
 test('TODO-001/003/004/005/006/007: real persistent todo workflow and confirmed deletion', async ({

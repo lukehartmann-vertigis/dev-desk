@@ -431,7 +431,7 @@ Settings; no source is enabled by default. The template is [.env.example](../.en
 | `SYNC_INTERVAL_SECONDS` | Integer 30–3600; default 180 |
 | `DATABASE_PATH` | SQLite path; Docker sets `/data/dashboard.db`, host development defaults to `.data/dashboard.db` |
 | `COPILOT_STATE_PATH` | SDK state directory; defaults beside the database, `/data/copilot` in Docker |
-| `APP_ORIGIN` | Local application origin; default `http://localhost:3000` |
+| `APP_ORIGIN` | Local application origin; default `http://localhost:3100` |
 
 Configuration groups:
 - SQLite/local todo configuration is required. Core storage validation or
@@ -459,7 +459,7 @@ Configuration groups:
   for secrets is exposed in the browser.
 
 The container listens internally on the required interface while Compose
-publishes only `127.0.0.1:3000:3000`. Run as a non-root user with a writable data
+publishes only `127.0.0.1:3100:3100`. Run as a non-root user with a writable data
 volume and appropriate ownership. Keep at one application replica.
 
 Host `.env` access and volume backups require OS-level protection. The app cannot

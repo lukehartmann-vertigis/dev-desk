@@ -29,7 +29,7 @@ export function configuration(env: Readonly<Record<string, string | undefined>> 
 	const organization = env.AZURE_DEVOPS_ORG ?? 'vertigis';
 	const core = z.object({ database: nonempty, origin: z.url() }).parse({
 		database: env.DATABASE_PATH ?? '.data/dashboard.db',
-		origin: env.APP_ORIGIN ?? 'http://localhost:3000',
+		origin: env.APP_ORIGIN ?? 'http://localhost:3100',
 	});
 	const adoPresent = [
 		'AZURE_DEVOPS_PAT',

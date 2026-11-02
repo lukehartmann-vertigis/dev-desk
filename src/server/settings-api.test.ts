@@ -36,11 +36,11 @@ afterEach(async () => {
 });
 
 function request(path: string, value?: unknown, marked = true) {
-	return new Request(`http://localhost:3000/api/${path}`, {
+	return new Request(`http://localhost:3100/api/${path}`, {
 		method: value === undefined ? 'GET' : 'POST',
 		headers: {
-			host: 'localhost:3000',
-			origin: 'http://localhost:3000',
+			host: 'localhost:3100',
+			origin: 'http://localhost:3100',
 			'content-type': 'application/json',
 			'x-devdesk-request': marked ? '1' : '0',
 		},
