@@ -36,6 +36,65 @@ implementation. SET-001 through SET-011 now supersede the fixed initial scope
 and add Settings navigation. Completed offline checks and remaining live PAT
 acceptance are recorded in the application report, not inferred from approval.
 
+### Planning handoff increment: concept approved, implementation pending
+
+On 2026-11-03 the user approved documenting a copyable, self-contained work-item
+planning request for manual submission in the appropriate VS Code workspace.
+See [AI-014 through AI-017, AI-023, and their implementation plan](assistant.md#planning-handoff-increment).
+The increment uses existing scoped reads and conversation storage; it adds no
+checkout mapping, editor control, code access, autonomous execution, or Azure
+DevOps writes. The user subsequently approved one existing chat agent using a
+schema-validated `create_planning_handoff` tool to persist a typed entry in its
+owning chat, rather than a second agent or free-text artifact detection.
+[ADR-0017](../adr/0017-structured-planning-handoff-tool.md) records this bounded
+extension of AI-008/AI-009 without todo-write permission. Implementation is not
+authorized, implemented, or verified.
+Baseline v1 acceptance and historical approvals remain unchanged.
+
+The later approved [independent-artifact increment](assistant.md#independent-handoff-artifacts-increment)
+replaces only the initial chat-owned storage/retention rules with versioned
+handoffs in the existing SQLite database, an independent overview, and precise
+message/run provenance. See [ADR-0018](../adr/0018-independent-handoff-artifacts.md).
+The single-agent/tool and manual VS Code handoff boundaries remain unchanged.
+
+### Chat history increment: concept approved, implementation pending
+
+On 2026-11-03 the user approved adding separate durable chats to the planning
+scope: starting a new conversation without deleting earlier ones, a history list
+with titles and last activity, reopening and continuation, and confirmed removal
+only. See [AI-018 through AI-022](assistant.md#durable-chat-history-increment).
+This extends AI-002/AI-013 and the baseline single-conversation limit for the new
+increment only; one active run remains an application-wide limit. The current
+single-chat implementation and historical baseline are not claimed to support it.
+[ADR-0016](../adr/0016-durable-chat-history.md) records conversation-scoped
+persistence and SDK lifecycle, accepted in the subsequent combined-plan approval.
+The direct message-ownership refinement is approved in ADR-0018. Separate
+implementation approval remains pending; no implementation or functional
+verification is claimed.
+
+### Independent handoffs: model approved, implementation pending
+
+On 2026-11-03 the user approved documenting conversations directly owning messages,
+runs as technical execution attempts, and independent immutable handoff versions
+with precise message/run provenance that survive source-chat deletion. A dedicated
+overview supports finding handoffs by ticket/title, selecting versions, and copying
+them independently of chat history. Handoff removal requires its own confirmation.
+See [AI-024 through AI-027](assistant.md#independent-handoff-artifacts-increment)
+and the accepted ADR-0018. Implementation is not authorized, implemented, or
+functionally verified. This replaces planned chat-only artifact storage without
+adding repository access, another agent, external writes, or automatic execution.
+
+### Combined plan: approved, implementation pending
+
+On 2026-11-03 the user explicitly approved the documented combined plan for
+AI-014 through AI-027: durable conversation history, the single-agent handoff
+tool, independent versioned artifacts, the documented architecture and work order,
+and the planned checks. ADR-0016 is now Accepted; ADR-0017 remains accepted within
+the partial supersession boundaries recorded by ADR-0018. No planning/architecture
+approval remains open for this scope. This approval is not an implementation
+instruction: separate implementation approval is still required, and delivery
+and functional verification remain unperformed.
+
 ## 1. Product goal
 
 Provide a lightweight, locally hosted, single-user developer workspace. The
@@ -157,6 +216,10 @@ resolution remains a technical gate, not an unresolved product policy.
 - Mandatory performance benchmarks, latency percentiles, and reference-hardware
   certification.
 
+These are historical baseline v1 boundaries. The concept-approved chat-history
+increment separately lifts the multiple-chat exclusion, not the exclusions of
+search, notifications, or automatic summaries; implementation is still pending.
+
 “Offline” below means unavailable external services while the local server is
 running. It does not promise a usable UI when the local application is stopped.
 
@@ -186,6 +249,10 @@ running. It does not promise a usable UI when the local application is stopped.
 | TODO-001 through TODO-011 | [Todo management](todos.md) |
 | ADO-001 through ADO-012 | [Azure DevOps integration](azure-devops.md) |
 | AI-001 through AI-013 | [Assistant](assistant.md) |
+| AI-014 through AI-017 | [Planning handoff](assistant.md#planning-handoff-increment); concept approved, implementation approval pending |
+| AI-018 through AI-022 | [Durable chat history](assistant.md#durable-chat-history-increment); concept approved, implementation approval pending |
+| AI-023 | [Validated handoff tool](assistant.md#ai-023---validated-handoff-creation-tool); approach approved, implementation approval pending |
+| AI-024 through AI-027 | [Independent handoffs and ownership](assistant.md#independent-handoff-artifacts-increment); model approved, implementation approval pending |
 | UX-001 through UX-008 | [Experience](experience-and-operations.md#experience) |
 | OPS-001 through OPS-010 | [Operations and quality](experience-and-operations.md#operations-and-quality); OPS-006 is deferred |
 | SET-001 through SET-011 | [Azure DevOps settings](settings.md); approved and implemented increment |

@@ -19,6 +19,9 @@
 | [0013](0013-safe-markdown-and-todo-drag-handles.md) | Safe assistant Markdown and accessible persistent todo drag handles | Accepted for the requested frontend enhancement |
 | [0014](0014-local-scope-chips-and-tool-outcomes.md) | Single-select in-tab scope chips and compact literal tool disclosures | Accepted by explicit user instruction |
 | [0015](0015-persisted-azure-devops-settings.md) | Persisted application-wide Azure DevOps source selection with organization-wide discovery and an empty initial scope | Accepted; implemented, live account discovery not certified |
+| [0016](0016-durable-chat-history.md) | Durable independent conversation history with scoped SDK continuation, migration, and cleanup | Accepted in combined-plan approval; ownership refined by [0018](0018-independent-handoff-artifacts.md); implementation approval pending |
+| [0017](0017-structured-planning-handoff-tool.md) | One existing chat agent with a validated planning-handoff creation tool | Accepted; storage/lifecycle partially superseded by [0018](0018-independent-handoff-artifacts.md); implementation approval pending |
+| [0018](0018-independent-handoff-artifacts.md) | Direct conversation ownership of messages, technical runs, and independent immutable handoff versions with message/run provenance | Accepted model; implementation approval pending, not implemented or verified |
 
 ## Status policy
 
