@@ -2,12 +2,13 @@ import type { Chat } from './chat';
 
 /**
  * Starts a validated chat command and returns uncached NDJSON with 5s heartbeats.
+ * The first event identifies the run and its (possibly newly created) conversation.
  * Request/reader cancellation aborts future tool dispatch; committed writes remain durable.
  * Synchronous start failures propagate to the route's error boundary.
  */
 export function chatResponse(
 	chat: Pick<Chat, 'start'>,
-	command: { prompt: string; requestId: string },
+	command: { prompt: string; requestId: string; conversationId?: string | undefined },
 	signal: AbortSignal,
 ) {
 	const abort = new AbortController();
@@ -28,13 +29,12 @@ export function chatResponse(
 			controller?.enqueue(encoder.encode(`${JSON.stringify(value)}\n`));
 		}
 	};
-	const done = chat.start(
-		command.prompt,
-		command.requestId,
+	const { conversationId, runId, done } = chat.start(
+		command,
 		AbortSignal.any([abort.signal, signal]),
 		notify,
 	);
-	notify({ type: 'started' });
+	notify({ type: 'started', conversationId, runId });
 	const heartbeat = setInterval(() => notify({ type: 'heartbeat' }), 5000);
 	void done.finally(() => {
 		clearInterval(heartbeat);

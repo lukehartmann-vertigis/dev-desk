@@ -101,3 +101,10 @@ including preservation of the old chat, two-chat isolation, restart and containe
 recreation with persistent storage, offline reading, failure to resume, and
 chat-scoped cleanup. Live SDK/account behavior is a separate acceptance check,
 not proven by synthetic fixtures or concept approval.
+
+Implementation (2026-11-03): delivered after the user's explicit implementation
+request. Migration `0002` rebuilds runs/messages/approvals inside the migrator
+transaction with deferred foreign keys, so dropping legacy tables cannot cascade.
+Orphaned classifier sessions are retried through a dedicated cleanup action
+because the former global clear no longer exists. Evidence and open live checks:
+[application report](../verification/application.md#durable-chats-and-planning-handoffs--2026-11-03).

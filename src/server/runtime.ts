@@ -15,30 +15,38 @@ export function createRuntime() {
 	const store = openStore(config.database);
 	const azure = new Azure(store, config);
 	const chat = new Chat(store, config, azure);
-	/** Reads only committed local state and safe configuration status; never contacts providers. */
-	const state = (): DashboardState => ({
-		todos: readTodos(store),
-		ado: {
-			...config.adoStatus,
-			organization: config.adoOrganization,
-			running: azure.running,
-			snapshots: azure.read(),
-			repositories: azure.repositories,
-			boardScopes: azure.readBoards(),
-			selection: {
-				revision: azure.selection.revision,
-				boards: azure.selection.boards.length,
-				repositories: azure.selection.repositories.length,
+	/**
+	 * Reads only committed local state and safe configuration status; never contacts providers.
+	 * Chat and approvals belong to the requested conversation; an unknown ID selects none.
+	 */
+	const state = (requested?: string | null): DashboardState => {
+		const conversationId = requested && chat.conversation(requested) ? requested : null;
+		return {
+			todos: readTodos(store),
+			ado: {
+				...config.adoStatus,
+				organization: config.adoOrganization,
+				running: azure.running,
+				snapshots: azure.read(),
+				repositories: azure.repositories,
+				boardScopes: azure.readBoards(),
+				selection: {
+					revision: azure.selection.revision,
+					boards: azure.selection.boards.length,
+					repositories: azure.selection.repositories.length,
+				},
 			},
-		},
-		copilot: {
-			...config.copilotStatus,
-			running: chat.running,
-			cleanupPending: chat.cleanupPending,
-		},
-		chat: chat.read(),
-		approvals: pendingApprovals(store),
-	});
+			copilot: {
+				...config.copilotStatus,
+				running: chat.running,
+				cleanupPending: chat.cleanupPending,
+			},
+			conversations: chat.conversations(),
+			conversationId,
+			chat: chat.read(conversationId),
+			approvals: pendingApprovals(store, conversationId),
+		};
+	};
 	let stopping: Promise<void> | undefined;
 	return {
 		config,

@@ -137,3 +137,8 @@ All functional checks remain unperformed. Live SDK continuation, real source
 permissions/fields, and browser clipboard acceptance remain separate from fixture
 results. The next permitted application change requires explicit implementation
 approval and an implementation-capable agent.
+
+Implementation (2026-11-03): delivered after explicit implementation approval.
+`runs.requestMessageId` is nullable only for migrated legacy runs whose request
+message cannot be identified; new runs always set it. Evidence and open live
+checks: [application report](../verification/application.md#durable-chats-and-planning-handoffs--2026-11-03).

@@ -15,6 +15,7 @@ const toolLabels = new Map([
 	['read_azure_detail', 'Read Azure DevOps details'],
 	['mutate_todo', 'Update todo'],
 	['request_todo_deletion', 'Request todo deletion'],
+	['create_planning_handoff', 'Create planning handoff'],
 ]);
 
 function summary(message: ChatMessage) {

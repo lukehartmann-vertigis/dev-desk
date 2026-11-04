@@ -84,16 +84,20 @@ and the accepted ADR-0018. Implementation is not authorized, implemented, or
 functionally verified. This replaces planned chat-only artifact storage without
 adding repository access, another agent, external writes, or automatic execution.
 
-### Combined plan: approved, implementation pending
+### Combined plan: approved and implemented
 
 On 2026-11-03 the user explicitly approved the documented combined plan for
 AI-014 through AI-027: durable conversation history, the single-agent handoff
 tool, independent versioned artifacts, the documented architecture and work order,
 and the planned checks. ADR-0016 is now Accepted; ADR-0017 remains accepted within
 the partial supersession boundaries recorded by ADR-0018. No planning/architecture
-approval remains open for this scope. This approval is not an implementation
-instruction: separate implementation approval is still required, and delivery
-and functional verification remain unperformed.
+approval remains open for this scope.
+
+The user then explicitly submitted the implementation request on the same date.
+The increment is implemented; offline, browser, and production-image evidence and
+the open live Copilot/PAT acceptance checks are in the
+[application report](../verification/application.md#durable-chats-and-planning-handoffs--2026-11-03).
+The section headings above that say "implementation pending" record earlier stages.
 
 ## 1. Product goal
 
@@ -249,10 +253,10 @@ running. It does not promise a usable UI when the local application is stopped.
 | TODO-001 through TODO-011 | [Todo management](todos.md) |
 | ADO-001 through ADO-012 | [Azure DevOps integration](azure-devops.md) |
 | AI-001 through AI-013 | [Assistant](assistant.md) |
-| AI-014 through AI-017 | [Planning handoff](assistant.md#planning-handoff-increment); concept approved, implementation approval pending |
-| AI-018 through AI-022 | [Durable chat history](assistant.md#durable-chat-history-increment); concept approved, implementation approval pending |
-| AI-023 | [Validated handoff tool](assistant.md#ai-023---validated-handoff-creation-tool); approach approved, implementation approval pending |
-| AI-024 through AI-027 | [Independent handoffs and ownership](assistant.md#independent-handoff-artifacts-increment); model approved, implementation approval pending |
+| AI-014 through AI-017 | [Planning handoff](assistant.md#planning-handoff-increment); approved and implemented, live acceptance open |
+| AI-018 through AI-022 | [Durable chat history](assistant.md#durable-chat-history-increment); approved and implemented, live acceptance open |
+| AI-023 | [Validated handoff tool](assistant.md#ai-023---validated-handoff-creation-tool); approved and implemented, live acceptance open |
+| AI-024 through AI-027 | [Independent handoffs and ownership](assistant.md#independent-handoff-artifacts-increment); approved and implemented, live acceptance open |
 | UX-001 through UX-008 | [Experience](experience-and-operations.md#experience) |
 | OPS-001 through OPS-010 | [Operations and quality](experience-and-operations.md#operations-and-quality); OPS-006 is deferred |
 | SET-001 through SET-011 | [Azure DevOps settings](settings.md); approved and implemented increment |

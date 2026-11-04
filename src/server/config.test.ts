@@ -23,6 +23,8 @@ describe('configuration isolation and localhost boundary', () => {
 				snapshots: [],
 			},
 			copilot: { ...integration, cleanupPending: false },
+			conversations: [],
+			conversationId: null,
 			chat: [],
 			approvals: [],
 		};

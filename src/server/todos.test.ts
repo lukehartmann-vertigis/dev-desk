@@ -5,8 +5,14 @@ import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { eq } from 'drizzle-orm';
 import { openStore, type Store } from './store';
-import { approvals, receipts, runs } from './schema';
-import { approveDeletion, mutateTodo, mutateTodoWithReference, readTodos } from './todos';
+import { approvals, conversations, receipts, runs } from './schema';
+import {
+	approveDeletion,
+	mutateTodo,
+	mutateTodoWithReference,
+	pendingApprovals,
+	readTodos,
+} from './todos';
 import { Azure } from './azure';
 import { configuration } from './config';
 import { readSettings, writeSettings } from './settings';
@@ -32,6 +38,27 @@ function first() {
 		throw new Error('Missing test todo');
 	}
 	return todo;
+}
+
+function seedRun() {
+	const conversationId = randomUUID();
+	const runId = randomUUID();
+	const now = new Date().toISOString();
+	store.db
+		.insert(conversations)
+		.values({
+			id: conversationId,
+			title: 'Synthetic',
+			status: 'active',
+			createdAt: now,
+			updatedAt: now,
+		})
+		.run();
+	store.db
+		.insert(runs)
+		.values({ id: runId, conversationId, status: 'complete', createdAt: now })
+		.run();
+	return { conversationId, runId };
 }
 
 describe('persistent todo contracts', () => {
@@ -263,12 +290,8 @@ describe('persistent todo contracts', () => {
 	it('AI-007 approves only an exact, unexpired version and never reuses an approval', () => {
 		create();
 		const todo = first();
-		const runId = randomUUID();
+		const { conversationId, runId } = seedRun();
 		const id = randomUUID();
-		store.db
-			.insert(runs)
-			.values({ id: runId, status: 'complete', createdAt: new Date().toISOString() })
-			.run();
 		store.db
 			.insert(approvals)
 			.values({
@@ -288,21 +311,47 @@ describe('persistent todo contracts', () => {
 			reference: null,
 			requestId: randomUUID(),
 		});
-		expect(() => approveDeletion(store, id, true, randomUUID())).toThrow('changed');
+		expect(() => approveDeletion(store, id, true, randomUUID(), conversationId)).toThrow(
+			'changed',
+		);
 		store.db.update(approvals).set({ revision: 2 }).where(eq(approvals.id, id)).run();
-		approveDeletion(store, id, true, randomUUID());
+		approveDeletion(store, id, true, randomUUID(), conversationId);
 		expect(readTodos(store).items).toEqual([]);
-		expect(() => approveDeletion(store, id, true, randomUUID())).toThrow('expired');
+		expect(() => approveDeletion(store, id, true, randomUUID(), conversationId)).toThrow(
+			'expired',
+		);
+	});
+	it('AI-020 lists and confirms approvals only within their originating chat', () => {
+		create();
+		const todo = first();
+		const own = seedRun();
+		const other = seedRun();
+		const id = randomUUID();
+		store.db
+			.insert(approvals)
+			.values({
+				id,
+				todoId: todo.id,
+				revision: 1,
+				title: todo.title,
+				runId: own.runId,
+				expiresAt: new Date(Date.now() + 300000).toISOString(),
+			})
+			.run();
+		expect(pendingApprovals(store, own.conversationId).map((item) => item.id)).toEqual([id]);
+		expect(pendingApprovals(store, other.conversationId)).toEqual([]);
+		expect(pendingApprovals(store, null)).toEqual([]);
+		expect(() => approveDeletion(store, id, true, randomUUID(), other.conversationId)).toThrow(
+			'another chat',
+		);
+		expect(readTodos(store).items).toHaveLength(1);
+		expect(pendingApprovals(store, own.conversationId)).toHaveLength(1);
 	});
 	it('AI-007 rejects expired or rejected approvals without deleting', () => {
 		create();
 		const todo = first();
-		const runId = randomUUID();
+		const { conversationId, runId } = seedRun();
 		const id = randomUUID();
-		store.db
-			.insert(runs)
-			.values({ id: runId, status: 'complete', createdAt: new Date().toISOString() })
-			.run();
 		store.db
 			.insert(approvals)
 			.values({
@@ -314,14 +363,16 @@ describe('persistent todo contracts', () => {
 				expiresAt: new Date(Date.now() - 1).toISOString(),
 			})
 			.run();
-		expect(() => approveDeletion(store, id, true, randomUUID())).toThrow('expired');
+		expect(() => approveDeletion(store, id, true, randomUUID(), conversationId)).toThrow(
+			'expired',
+		);
 		store.db
 			.update(approvals)
 			.set({ expiresAt: new Date(Date.now() + 300000).toISOString() })
 			.where(eq(approvals.id, id))
 			.run();
-		approveDeletion(store, id, false, randomUUID());
-		expect(() => approveDeletion(store, id, true, randomUUID())).toThrow();
+		approveDeletion(store, id, false, randomUUID(), conversationId);
+		expect(() => approveDeletion(store, id, true, randomUUID(), conversationId)).toThrow();
 		expect(readTodos(store).items).toHaveLength(1);
 	});
 });

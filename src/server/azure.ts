@@ -1043,6 +1043,9 @@ export class Azure {
 						? {
 								title: fields['System.Title'],
 								description: fields['System.Description'],
+								// Process-dependent field; null states that it was absent, not empty.
+								acceptanceCriteria:
+									fields['Microsoft.VSTS.Common.AcceptanceCriteria'] ?? null,
 								state: fields['System.State'],
 								type: fields['System.WorkItemType'],
 							}

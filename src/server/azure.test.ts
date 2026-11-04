@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { z } from 'zod';
 import { Azure, needsReview } from './azure';
 import { configuration } from './config';
 import { readSettings, writeSettings } from './settings';
@@ -631,6 +632,45 @@ describe('read-only ADO adapter', () => {
 		await expect(service.detail(reference, new AbortController().signal)).rejects.toThrow(
 			'selected',
 		);
+	});
+	it('AI-014 returns acceptance criteria when present and an explicit null when absent', async () => {
+		const upstream = transport();
+		const adapter = new Azure(
+			store,
+			configuration({ AZURE_DEVOPS_PAT: 'synthetic' }),
+			async (input, init) => {
+				const url = new URL(String(input));
+				if (url.pathname.endsWith('/workitems/1') && !url.searchParams.has('fields')) {
+					return Response.json({
+						fields: {
+							'System.TeamProject': 'Utilities',
+							'System.AreaPath': 'Utilities\\Feature\\Child',
+							'System.AssignedTo': { id: user },
+							'System.Title': 'Synthetic work',
+							'Microsoft.VSTS.Common.AcceptanceCriteria': '<ul><li>Works</li></ul>',
+						},
+					});
+				}
+				return upstream(input, init);
+			},
+		);
+		service = adapter;
+		await adapter.refresh();
+		const detailSchema = z.object({
+			fields: z.object({ acceptanceCriteria: z.string().nullable() }),
+		});
+		const read = async (id: number) => {
+			const reference = {
+				kind: 'workItem' as const,
+				organization: 'vertigis',
+				project: 'Utilities',
+				id,
+			};
+			const detail = await adapter.detail(reference, new AbortController().signal);
+			return detailSchema.parse(JSON.parse(detail.content)).fields.acceptanceCriteria;
+		};
+		expect(await read(1)).toBe('<ul><li>Works</li></ul>');
+		expect(await read(2)).toBeNull();
 	});
 	it('SET-007 verifies area and assignment before reading work-item discussions', async () => {
 		const upstream = transport();

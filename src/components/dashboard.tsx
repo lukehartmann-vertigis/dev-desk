@@ -26,8 +26,11 @@ export function Dashboard() {
 		streamed,
 		send,
 		cancel,
-		setClearChat,
+		openChat,
+		setRemovingChat,
 		setApproval,
+		focusMessage,
+		clearFocus,
 	} = dashboard;
 	if (!state) {
 		return (
@@ -66,8 +69,20 @@ export function Dashboard() {
 		streamed,
 		send,
 		cancel,
-		clear: () => setClearChat(true),
-		approval: setApproval,
+		newChat: () => openChat(null),
+		openChat,
+		removeChat: (conversation) => {
+			setError('');
+			setRemovingChat(conversation);
+		},
+		retryCleanup: () => void action('chat/cleanup', {}),
+		approval: (item) => {
+			if (state.conversationId) {
+				setApproval({ ...item, conversationId: state.conversationId });
+			}
+		},
+		focusMessage,
+		focused: clearFocus,
 	};
 	return (
 		<>

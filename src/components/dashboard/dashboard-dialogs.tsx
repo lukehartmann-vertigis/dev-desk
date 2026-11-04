@@ -18,10 +18,12 @@ type DialogProps = Pick<
 	| 'approval'
 	| 'setApproval'
 	| 'action'
-	| 'clearChat'
-	| 'setClearChat'
+	| 'removingChat'
+	| 'setRemovingChat'
+	| 'removeChat'
+	| 'error'
 >;
-/** Controlled edit/deletion/clear confirmations; closes only after the controller commits success. */
+/** Controlled edit/deletion/removal confirmations; closes only after the controller commits success. */
 export function DashboardDialogs({
 	editing,
 	setEditing,
@@ -37,8 +39,10 @@ export function DashboardDialogs({
 	approval,
 	setApproval,
 	action,
-	clearChat,
-	setClearChat,
+	removingChat,
+	setRemovingChat,
+	removeChat,
+	error,
 }: DialogProps) {
 	return (
 		<>
@@ -136,6 +140,7 @@ export function DashboardDialogs({
 											id: approval.id,
 											accept: false,
 											requestId: crypto.randomUUID(),
+											conversationId: approval.conversationId,
 										})
 									) {
 										setApproval(null);
@@ -153,6 +158,7 @@ export function DashboardDialogs({
 											id: approval.id,
 											accept: true,
 											requestId: crypto.randomUUID(),
+											conversationId: approval.conversationId,
 										})
 									) {
 										setApproval(null);
@@ -165,31 +171,35 @@ export function DashboardDialogs({
 					</div>
 				</Modal>
 			)}
-			{clearChat && (
-				<Modal title="Clear conversation?" close={() => setClearChat(false)} busy={busy}>
+			{removingChat && (
+				<Modal title="Delete chat?" close={() => setRemovingChat(null)} busy={busy}>
 					<div className="p-5">
-						<p>
-							This cancels active work and removes local messages, tool outcomes,
-							approvals, and SDK conversation state. Todos remain saved.
+						<p className="break-words">
+							Delete &quot;{removingChat.title}&quot;? This cancels its active work
+							and removes its messages, tool outcomes, approvals, and Copilot
+							conversation state.
 						</p>
 						<p className="mt-3 text-xs">
-							Old backups and GitHub retention are not affected. Incomplete cleanup is
-							reported and can be retried.
+							Other chats, todos, and saved planning handoffs remain; handoffs only
+							lose their link to this chat. Copied text, old backups, and GitHub
+							retention are not affected. Incomplete cleanup is reported and can be
+							retried.
 						</p>
+						{error && (
+							<p role="alert" className="notice error mt-3">
+								{error}
+							</p>
+						)}
 						<div className="mt-5 flex justify-end gap-2">
-							<button disabled={busy} onClick={() => setClearChat(false)}>
+							<button disabled={busy} onClick={() => setRemovingChat(null)}>
 								Cancel
 							</button>
 							<button
 								className="danger"
 								disabled={busy}
-								onClick={async () => {
-									if (await action('chat/clear', { confirmed: true })) {
-										setClearChat(false);
-									}
-								}}
+								onClick={() => void removeChat(removingChat)}
 							>
-								Clear conversation
+								Delete chat
 							</button>
 						</div>
 					</div>

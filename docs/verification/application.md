@@ -16,6 +16,60 @@ of real work items, PRs, todos, or conversation entries are intentionally omitte
 Test-suite totals, synthetic fixture counts, and technical measurements remain
 as reproducible verification evidence.
 
+### Durable chats and planning handoffs — 2026-11-03
+
+The user explicitly submitted the implementation request after approving the
+combined plan for [AI-014 through AI-027](../requirements/assistant.md#planning-handoff-increment)
+and [ADR-0016](../adr/0016-durable-chat-history.md)/[0017](../adr/0017-structured-planning-handoff-tool.md)/[0018](../adr/0018-independent-handoff-artifacts.md).
+
+Verification performed:
+- Typecheck, zero-warning lint, formatting, **164 offline Vitest tests** in 15
+  files, and the production build pass, including inside the Dockerfile build.
+- [Migration tests](../../src/server/migration.test.ts) upgrade a seeded legacy
+  database: one stable chat adopts all messages in order, run statuses, request
+  message links, approvals, todos, and the legacy SDK session; an empty legacy
+  database creates no chat; an incomplete legacy clear becomes a `removing` chat;
+  a mid-migration failure rolls back completely; repeated startup is stable.
+- [Chat tests](../../src/server/chat.test.ts) cover two isolated chats with
+  separate SDK sessions and resume of the selected one, user messages stored
+  without a run, unknown-chat rejection, removal of only the confirmed chat
+  (refused while another chat runs), failed removal kept retryable and
+  non-resumable, and restored chats/handoff references after reopening storage.
+- Handoff tool tests cover the exact `handoff` tool inventory without todo
+  writes, the same-run source requirement, invalid payloads, superseded source
+  scope, operation replay and conflicting reuse, provenance links, revisions,
+  missing or cross-ticket revision targets, a committed handoff followed by a
+  failed assistant stream, and chat removal that keeps content while detaching
+  provenance. [Handoff tests](../../src/server/handoffs.test.ts) cover deterministic
+  export, overview ordering, atomic rollback, and version-bound deletion leaving
+  chat references unavailable. [Approval tests](../../src/server/todos.test.ts)
+  reject confirmation from another chat. An [adapter test](../../src/server/azure.test.ts)
+  returns acceptance criteria when present and `null` when absent.
+- **53 Chromium cases** pass against an isolated, token-free production
+  container on a dedicated volume, including 9 new [handoff cases](../../tests/e2e/handoffs.spec.ts):
+  chat history and exact clipboard copy at 375/768/1440px, unavailable
+  references, clipboard denial with manual selection, new-chat requests without
+  a chat ID, target-bound chat deletion, overview search/versions/provenance/
+  confirmed deletion at 375/1440px, distinct load failure versus empty overview,
+  and real API identity validation. One drag-sorting case failed once in the
+  first full run and passed in three later runs, including repeats; it is
+  recorded as an intermittent pre-existing timing case, not a fixed defect.
+- Production images: a volume created by the previous image with synthetic legacy
+  rows migrated on first start of the new image; the conversation-scoped state
+  hash was identical after container recreation and after a whole-volume
+  backup/restore into a fresh volume; confirmed chat removal through the real API
+  returned 200. All temporary containers and volumes were removed afterwards.
+- Synthetic desktop/mobile chat history, handoff card, and Handoffs page
+  screenshots were visually inspected.
+
+Not performed (open, not failed): live Copilot classification of handoff
+requests and model-driven tool use, real SDK resume per chat across a restart,
+SDK session deletion during removal with a real runtime (fake SDK and the
+existing native policy test only; the production check had no SDK state),
+acceptance-criteria availability in real process templates with the app PAT,
+and focus/scroll after following a provenance link (only the link target is
+automated). The user's normal instance and data were not used.
+
 ### Persistent source settings — 2026-10-28
 
 The user explicitly authorized implementation of
@@ -396,6 +450,9 @@ fully certified.
 | UX-001–004, UX-006–008 | Real browser workflows, validation input retained at 501 characters, explicit states, English UI, drawer, keyboard/focus/reduced motion, desktop visual review | Browser automation is not a complete assistive-technology accessibility audit |
 | OPS-001–005, OPS-007–010 | Actual image/build/Compose, HTTP boundary tests, safe external-text rendering, durable SQLite and backup/restore, documented setup/upgrade | Provider-side retention and account-specific recovery are not locally certified; no formal external security audit |
 | OPS-006 | Deferred by explicit prior user decision | Not a release gate |
+| AI-014–017, AI-023 | [Chat tests](../../src/server/chat.test.ts) for intent inventory, same-run source, validation, replay, revisions, stream failure; [adapter](../../src/server/azure.test.ts) acceptance criteria; [handoff](../../src/server/handoffs.test.ts) export; Chromium copy/denial | Live classification, model-written content quality, and real process fields |
+| AI-018–022 | [Migration](../../src/server/migration.test.ts), chat isolation/removal/reopen tests, Chromium history and target-bound deletion, production-image migration, recreation and restore | Real per-chat SDK resume across restart and real SDK session deletion |
+| AI-024–027 | [Handoff](../../src/server/handoffs.test.ts) atomicity/order/deletion, provenance detachment and direct message ownership tests, Chromium overview/versions/provenance/deletion | Provenance link landing focus is not automated |
 
 Important source regressions discovered and fixed during acceptance:
 - Cross-entry `AppError` recognition uses a process-wide symbol brand instead of

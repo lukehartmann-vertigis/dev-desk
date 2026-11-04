@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { mutationSchema, referenceSchema, saveSettingsSchema } from '../../../lib/contracts';
 import { AppError } from '../../../server/errors';
+import { deleteHandoff, listHandoffs, readHandoff } from '../../../server/handoffs';
 import { body, failure, json, protect } from '../../../server/http';
 import { runtime as application } from '../../../server/runtime';
 import { approveDeletion, mutateTodoWithReference } from '../../../server/todos';
@@ -16,9 +17,21 @@ async function handle(request: Request, context: { params: Promise<{ path: strin
 		const app = application();
 		protect(request, app.config.origin);
 		const path = (await context.params).path.join('/');
+		// State-returning operations echo the caller's selected chat; it never authorizes anything.
+		const selected = z
+			.uuid()
+			.nullable()
+			.parse(new URL(request.url).searchParams.get('conversation'));
 		if (request.method === 'GET') {
 			if (path === 'state') {
-				return json(app.state());
+				return json(app.state(selected));
+			}
+			if (path === 'handoffs') {
+				return json(listHandoffs(app.store));
+			}
+			const handoff = /^handoffs\/([^/]+)$/.exec(path)?.[1];
+			if (handoff) {
+				return json(readHandoff(app.store, z.uuid().parse(handoff)));
 			}
 			if (path === 'settings') {
 				return json(app.sourceSettings());
@@ -54,7 +67,7 @@ async function handle(request: Request, context: { params: Promise<{ path: strin
 					app.azure,
 					request.signal,
 				);
-				return json(app.state());
+				return json(app.state(selected));
 			}
 			if (path === 'reference') {
 				const { url } = z.object({ url: z.url().max(2048) }).parse(input);
@@ -65,29 +78,62 @@ async function handle(request: Request, context: { params: Promise<{ path: strin
 			}
 			if (path === 'refresh') {
 				void app.azure.refresh();
-				return json(app.state(), 202);
+				return json(app.state(selected), 202);
 			}
 			if (path === 'approval') {
 				const command = z
-					.object({ id: z.string().min(1), accept: z.boolean(), requestId: z.uuid() })
+					.object({
+						id: z.string().min(1),
+						accept: z.boolean(),
+						requestId: z.uuid(),
+						conversationId: z.uuid(),
+					})
 					.parse(input);
-				approveDeletion(app.store, command.id, command.accept, command.requestId);
-				return json(app.state());
+				approveDeletion(
+					app.store,
+					command.id,
+					command.accept,
+					command.requestId,
+					command.conversationId,
+				);
+				return json(app.state(selected));
 			}
 			if (path === 'chat/cancel') {
 				await app.chat.cancel();
-				return json(app.state());
+				return json(app.state(selected));
 			}
-			if (path === 'chat/clear') {
-				z.object({ confirmed: z.literal(true) }).parse(input);
-				await app.chat.clear();
-				return json(app.state());
+			if (path === 'chat/remove') {
+				const command = z
+					.object({ conversationId: z.uuid(), confirmed: z.literal(true) })
+					.parse(input);
+				await app.chat.remove(command.conversationId);
+				return json(app.state(selected));
+			}
+			if (path === 'chat/cleanup') {
+				z.object({}).parse(input);
+				await app.chat.cleanup();
+				return json(app.state(selected));
 			}
 			if (path === 'chat') {
 				const command = z
-					.object({ prompt: z.string().trim().min(1).max(8000), requestId: z.uuid() })
+					.object({
+						prompt: z.string().trim().min(1).max(8000),
+						requestId: z.uuid(),
+						conversationId: z.uuid().optional(),
+					})
 					.parse(input);
 				return chatResponse(app.chat, command, request.signal);
+			}
+			if (path === 'handoffs/delete') {
+				const command = z
+					.object({
+						handoffId: z.uuid(),
+						latestVersion: z.number().int().positive(),
+						confirmed: z.literal(true),
+					})
+					.parse(input);
+				deleteHandoff(app.store, command.handoffId, command.latestVersion);
+				return json(listHandoffs(app.store));
 			}
 		}
 		throw new AppError('NOT_FOUND', 'Unknown API operation.', 404);

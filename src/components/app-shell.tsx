@@ -8,7 +8,7 @@ export function AppShell({
 	chat,
 	children,
 }: {
-	active: 'overview' | 'settings';
+	active: 'overview' | 'handoffs' | 'settings';
 	sidebar?: ReactNode;
 	chat?: ReactNode;
 	children: ReactNode;
@@ -23,6 +23,7 @@ export function AppShell({
 				<nav className="workspace-nav" aria-label="Workspace">
 					{[
 						{ id: 'overview', href: '/', label: 'Overview' },
+						{ id: 'handoffs', href: '/handoffs', label: 'Handoffs' },
 						{ id: 'settings', href: '/settings', label: 'Settings' },
 					].map(({ id, href, label }) => (
 						<Link

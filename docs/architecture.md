@@ -150,12 +150,15 @@ Implemented tables are defined in [schema.ts](../src/server/schema.ts).
 | Record | Key fields / purpose |
 | --- | --- |
 | Todo | UUID, title, status, position, revision, created/updated/completed timestamps, optional typed external reference |
-| Metadata | List revision, single SDK conversation/classifier IDs and state paths, cleanup flag |
+| Metadata | List revision, orphaned classifier session ID, SDK state path |
+| Conversation | UUID, local title, `active`/`removing` status, SDK session ID, created/last-activity timestamps |
 | Snapshot | Organization + dataset + project/repository key, normalized JSON, last success, latest failure |
 | Azure settings | Normalized organization, revision, selected team/project and repository/project UUIDs with last-known labels |
-| Message | UUID, run ID, timestamp, role, content, complete/interrupted/failed state |
-| Assistant run | Request UUID, creation timestamp, lifecycle state |
+| Message | UUID, owning conversation, optional run ID, timestamp, role, content, complete/interrupted/failed state, optional handoff-version reference |
+| Assistant run | Request UUID, owning conversation, triggering user message, creation timestamp, lifecycle state |
 | Tool outcome | Structured tool-role message; durable mutation identity derives from run and SDK tool-call IDs |
+| Planning handoff | UUID and timestamps; independent of chats ([ADR-0018](adr/0018-independent-handoff-artifacts.md)) |
+| Handoff version | Immutable structured snapshot, export format, ticket reference, retrieval time, nullable origin message/run (set null on chat removal) |
 | Deletion approval | Opaque ID, run/todo/revision, display snapshot, expiry, consumption state |
 | Mutation receipt | Operation ID, payload hash, committed outcome for retry safety |
 
@@ -198,7 +201,7 @@ validated same-origin JSON requests with the application marker.
 
 | Surface | Contract |
 | --- | --- |
-| `GET /api/state` | Todos, scoped snapshots, selected source counts/revision, integration status, chat and approvals |
+| `GET /api/state` | Todos, scoped snapshots, selected source counts/revision, integration status, chat history, and the `?conversation=` chat's messages and approvals |
 | `GET /api/settings` | Committed identities/labels and safe connection/deprecation status; no upstream discovery |
 | `POST /api/settings/catalog` | Metadata-only accessible project/team/repository discovery; explicit partial errors |
 | `POST /api/settings` | Expected revision and both UUID/project-ID lists; validate additions, then atomic save |
@@ -206,10 +209,13 @@ validated same-origin JSON requests with the application marker.
 | `POST /api/reference` | Parse a selected-source URL; this is not live area/access verification |
 | `POST /api/reference/check` | Current-scope, assignment/area and upstream-access verification |
 | `POST /api/refresh` | Return `202` with local state; coalesce with an active cycle |
-| `POST /api/chat` | Validated prompt and request ID; streamed NDJSON through `fetch` |
+| `POST /api/chat` | Validated prompt, request ID, optional existing conversation ID; streamed NDJSON whose first event names the run and conversation |
 | `POST /api/chat/cancel` | Stop further work; retain committed tool outcomes |
-| `POST /api/approval` | Explicit confirm/reject against server-owned exact deletion |
-| `POST /api/chat/clear` | Confirmed clear, including SDK state; expose incomplete cleanup |
+| `POST /api/approval` | Explicit confirm/reject against server-owned exact deletion bound to its chat |
+| `POST /api/chat/remove` | Confirmed removal of one identified chat, including its SDK session; expose incomplete cleanup |
+| `POST /api/chat/cleanup` | Retry deletion of an orphaned classifier session |
+| `GET /api/handoffs`, `GET /api/handoffs/{id}` | Local handoff overview and version detail with provenance; no upstream access |
+| `POST /api/handoffs/delete` | Confirmed deletion of one handoff bound to its latest version number |
 | `GET /api/health` | Local process/storage readiness and separate integration configuration status |
 
 New or changed non-null todo references use the same async preflight for HTTP
@@ -361,6 +367,7 @@ A regular production Node image is preferred over a fragile minimal image.
 | Azure DevOps reads | List assigned work/reviews/own PRs; get scoped work-item or PR details/discussion |
 | Direct local writes | Create, edit, complete, reopen, reorder todo |
 | Gated deletion | Request deletion approval only |
+| Local artifact | Create a validated planning-handoff version for a work item read in the same request (handoff intent only) |
 
 There is **no** model-facing “confirm deletion” or unrestricted delete tool.
 The confirmation route validates the pending server-owned approval and calls the
@@ -400,19 +407,23 @@ See [ADR-0007](adr/0007-automatic-ai-intent.md).
 
 ### Conversation and recovery
 
-- Persist the user's message and run before dispatch.
+- Persist the user's message, then the run referencing it, before dispatch.
+  Conversations directly own messages and runs ([ADR-0016](adr/0016-durable-chat-history.md)).
 - Store visible assistant messages and structured tool outcomes in SQLite.
-- Keep SDK session ID and required runtime state on persistent storage; SQLite
-  history alone is not assumed sufficient for SDK resume.
+- Keep each conversation's SDK session ID and required runtime state on persistent
+  storage; SQLite history alone is not assumed sufficient for SDK resume.
 - Reapply current tools, safety policy, and scoped identity on every resume.
 - On disconnect/cancel, abort dispatch and retain any committed write outcomes.
-- Enforce one active run, a 120-second total budget, and 10 tool invocations;
-  classification is inside that budget, not an unbounded preceding workflow.
+- Enforce one active run application-wide, a 120-second total budget, and 10 tool
+  invocations; classification is inside that budget, not an unbounded preceding workflow.
 - On startup, reconcile interrupted runs without replaying mutations.
-- Clearing is a resumable local cleanup operation: invalidate approvals, delete
-  app content, remove the associated SDK state using the supported SDK API, and
-  report incomplete cleanup explicitly. Never delete the entire shared volume
-  as a substitute.
+- Chat removal is a resumable local cleanup operation for one identified chat:
+  mark it `removing`, delete its SDK session using the supported SDK API, then
+  delete its messages, runs, and approvals. Independent handoff versions remain
+  and only lose their provenance links. Never delete the shared volume as a substitute.
+- `create_planning_handoff` commits the version, its operation receipt, and the
+  referencing tool message in one transaction ([ADR-0017](adr/0017-structured-planning-handoff-tool.md),
+  [ADR-0018](adr/0018-independent-handoff-artifacts.md)).
 
 ## 9. Deployment and configuration
 

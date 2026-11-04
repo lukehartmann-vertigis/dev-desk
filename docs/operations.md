@@ -24,10 +24,12 @@ retain the last successfully cached data; local todos remain available.
   and organization policies. Host VS Code/CLI credentials are not used.
 - **Configuration changes:** run `docker compose up -d --force-recreate --wait`.
   A restart alone does not reload the Compose environment.
-- **Incomplete chat cleanup:** use Clear to retry. New runs remain blocked until
-  cleanup completes; todos are not deleted. The credential-free cleanup runtime
-  is stopped before chat resumes; the next request starts a new SDK client with
-  the configured Copilot token.
+- **Incomplete chat removal:** the chat stays in History as "Removal incomplete"
+  and cannot continue; use Delete chat again to retry. Other chats, todos, and
+  saved handoffs are unaffected. If an interrupted process left a classifier
+  session behind, the chat shows **Retry cleanup**; new runs stay blocked until it
+  succeeds. The credential-free cleanup runtime is stopped before chat resumes;
+  the next request starts a new SDK client with the configured Copilot token.
 
 Do not share `.env`, resolved Compose configuration, database files, SDK state,
 or backup archives. Review logs before sharing them.
@@ -55,7 +57,8 @@ todos, unchanged historical references, or stored chat.
 
 ## Backup and Restore
 
-The `devdesk-data` volume contains SQLite (including source settings), journal files, and SDK context. Stop
+The `devdesk-data` volume contains SQLite (including source settings, chats, and
+saved planning handoffs), journal files, and SDK context. Stop
 the app and copy the **entire volume**, not only an open database file.
 
 ```sh
@@ -84,9 +87,9 @@ docker compose up -d --wait
 Stop and separately back up any existing installation first. Do not extract into
 a non-empty live volume: old WAL/SDK files can invalidate the restored state.
 Set `backup` to the archive path if using a new shell. Restore with the same app
-version first, then upgrade normally. Check todos, stored chat, and, with a valid
-token, conversation continuation after restore. Check both saved source lists in
-Settings as well.
+version first, then upgrade normally. Check todos, chat history, saved handoffs,
+and, with a valid token, conversation continuation after restore. Check both
+saved source lists in Settings as well.
 
 App data and backups rely on host permissions, not application-level encryption.
 Do not use `docker compose down -v` for a restart or upgrade: it removes the data
@@ -103,6 +106,9 @@ docker compose up -d --build --wait
 Migrations run at server startup. A migration or storage failure blocks writable
 startup rather than replacing the database. For rollback, use the pre-upgrade
 backup and matching old image; automatic schema downgrades are not implemented.
+The chat-history migration adopts the previous single conversation as one saved
+chat; an older image cannot read the migrated schema, so roll back only from a
+pre-upgrade backup.
 
 ## Publishing Source
 

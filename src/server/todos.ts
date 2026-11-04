@@ -3,7 +3,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import { mutationSchema, type Mutation, type TodoList, type Reference } from '../lib/contracts';
 import { AppError } from './errors';
-import { todos, receipts, approvals } from './schema';
+import { todos, receipts, approvals, runs } from './schema';
 import { meta, setMeta, type Store } from './store';
 import type { Azure } from './azure';
 
@@ -181,26 +181,54 @@ export function mutateTodo(
 		return result;
 	});
 }
-/** Reads unconsumed approvals whose UTC expiry is still in the future; it does not consume them. */
-export function pendingApprovals(store: Store) {
+/**
+ * Reads one chat's unconsumed approvals whose UTC expiry is still in the future.
+ * A null conversation has none; reading never consumes an approval.
+ */
+export function pendingApprovals(store: Store, conversationId: string | null) {
+	if (!conversationId) {
+		return [];
+	}
 	return store.db
-		.select()
+		.select({ approval: approvals })
 		.from(approvals)
+		.innerJoin(runs, eq(runs.id, approvals.runId))
+		.where(eq(runs.conversationId, conversationId))
 		.all()
+		.map((row) => row.approval)
 		.filter((approval) => !approval.consumed && approval.expiresAt > new Date().toISOString());
 }
 /**
- * Consumes an exact, unexpired approval and optionally deletes its bound todo revision.
- * Both changes are transactional; expired/used approvals and stale todos throw AppError.
+ * Consumes an exact, unexpired approval of the given chat and optionally deletes its todo revision.
+ * Both changes are transactional; expired/used/foreign-chat approvals and stale todos throw AppError.
  * Rejecting consumes the approval without modifying the todo.
  */
-export function approveDeletion(store: Store, id: string, accept: boolean, requestId: string) {
+export function approveDeletion(
+	store: Store,
+	id: string,
+	accept: boolean,
+	requestId: string,
+	conversationId: string,
+) {
 	return store.db.transaction(() => {
-		const approval = store.db.select().from(approvals).where(eq(approvals.id, id)).get();
+		const row = store.db
+			.select({ approval: approvals, conversationId: runs.conversationId })
+			.from(approvals)
+			.innerJoin(runs, eq(runs.id, approvals.runId))
+			.where(eq(approvals.id, id))
+			.get();
+		const approval = row?.approval;
 		if (!approval || approval.consumed || approval.expiresAt <= new Date().toISOString()) {
 			throw new AppError(
 				'APPROVAL_EXPIRED',
 				'The deletion approval is expired or has already been used.',
+				409,
+			);
+		}
+		if (row.conversationId !== conversationId) {
+			throw new AppError(
+				'APPROVAL_SCOPE',
+				'This deletion approval belongs to another chat.',
 				409,
 			);
 		}

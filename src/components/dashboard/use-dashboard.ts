@@ -6,6 +6,7 @@ import {
 	referenceSchema,
 	referenceUrl,
 	type Approval,
+	type ConversationSummary,
 	type DashboardState,
 	type Mutation,
 	type Reference,
@@ -13,9 +14,18 @@ import {
 } from '../../lib/contracts';
 import { formatTimestamp } from '../../lib/format';
 import { api, headers, type ClientCommand } from './api';
+
+const streamEventSchema = z.object({
+	type: z.string(),
+	text: z.string().optional(),
+	message: z.string().optional(),
+	conversationId: z.string().optional(),
+});
+
 /**
- * Owns dashboard I/O, retry identities and controlled forms.
+ * Owns dashboard I/O, the selected chat, retry identities and controlled forms.
  * Polls only local state, cancels chat on page exit, and preserves input on failed writes.
+ * Responses for a previously selected chat are discarded instead of replacing the view.
  * Consumers must use the exposed actions rather than bypass pending/cleanup guards.
  */
 export function useDashboard() {
@@ -31,26 +41,69 @@ export function useDashboard() {
 	const [deleting, setDeleting] = useState<Todo | null>(null);
 	const [editTitle, setEditTitle] = useState('');
 	const [editLink, setEditLink] = useState('');
-	const [clearChat, setClearChat] = useState(false);
-	const [approval, setApproval] = useState<Approval | null>(null);
+	const [removingChat, setRemovingChat] = useState<ConversationSummary | null>(null);
+	const [approval, setApproval] = useState<(Approval & { conversationId: string }) | null>(null);
+	const [focusMessage, setFocusMessage] = useState<string | null>(null);
+	const clearFocus = useCallback(() => setFocusMessage(null), []);
 	const [referenceStatus, setReferenceStatus] = useState<Record<string, string>>({});
 	const requests = useRef(new Map<string, string>());
 	const actionPending = useRef(false);
 	const abort = useRef<AbortController | null>(null);
 	const input = useRef<HTMLInputElement>(null);
+	const selected = useRef<{ id: string | null; version: number }>({ id: null, version: 0 });
+	const select = useCallback((id: string | null) => {
+		selected.current = { id, version: selected.current.version + 1 };
+	}, []);
+	// Requests issued before the latest selection change are discarded on arrival.
+	const fetchState = useCallback(async (path: string, value?: unknown) => {
+		const { id, version } = selected.current;
+		const scoped = id ? `${path}?conversation=${encodeURIComponent(id)}` : path;
+		return { value: await api(scoped, dashboardSchema, value), version };
+	}, []);
+	const accept = useCallback(
+		({ value, version }: { value: DashboardState; version: number }) => {
+			const current = selected.current;
+			if (version !== current.version) {
+				return;
+			}
+			if (value.conversationId !== current.id) {
+				if (current.id === null || value.conversationId !== null) {
+					return;
+				}
+				select(null);
+			}
+			setState(value);
+		},
+		[select],
+	);
 	const load = useCallback(async () => {
 		try {
-			setState(await api('state', dashboardSchema));
+			accept(await fetchState('state'));
 		} catch (failure) {
 			setError(failure instanceof Error ? failure.message : 'Could not load the workspace.');
 		}
-	}, []);
+	}, [accept, fetchState]);
 	useEffect(() => {
 		let mounted = true;
-		void api('state', dashboardSchema)
-			.then((value) => {
-				if (mounted) {
-					setState(value);
+		const parameters = new URLSearchParams(window.location.search);
+		const requested = z.uuid().safeParse(parameters.get('conversation'));
+		const message = z.uuid().safeParse(parameters.get('message'));
+		if (requested.success) {
+			select(requested.data);
+			if (message.success) {
+				setFocusMessage(message.data);
+			}
+		}
+		void fetchState('state')
+			.then((response) => {
+				if (!mounted) {
+					return;
+				}
+				accept(response);
+				const latest = response.value.conversations[0];
+				if (!requested.success && latest && selected.current.version === response.version) {
+					select(latest.id);
+					void load();
 				}
 			})
 			.catch((failure: unknown) => {
@@ -99,7 +152,7 @@ export function useDashboard() {
 			window.removeEventListener('pagehide', leave);
 			leave();
 		};
-	}, [load]);
+	}, [accept, fetchState, load, select]);
 	useEffect(() => {
 		if (!state?.copilot.running && !state?.ado.running && !streaming) {
 			return;
@@ -120,7 +173,7 @@ export function useDashboard() {
 		setBusy(true);
 		setError('');
 		try {
-			setState(await api(path, dashboardSchema, value));
+			accept(await fetchState(path, value));
 			return true;
 		} catch (failure) {
 			setError(failure instanceof Error ? failure.message : 'The operation failed.');
@@ -228,7 +281,11 @@ export function useDashboard() {
 			const response = await fetch('/api/chat', {
 				method: 'POST',
 				headers,
-				body: JSON.stringify({ prompt, requestId: crypto.randomUUID() }),
+				body: JSON.stringify({
+					prompt,
+					requestId: crypto.randomUUID(),
+					...(selected.current.id ? { conversationId: selected.current.id } : {}),
+				}),
 				signal: controller.signal,
 			});
 			if (!response.ok) {
@@ -256,14 +313,16 @@ export function useDashboard() {
 				buffer += decoder.decode(part.value, { stream: true });
 				let newline: number;
 				while ((newline = buffer.indexOf('\n')) >= 0) {
-					const value = z
-						.object({
-							type: z.string(),
-							text: z.string().optional(),
-							message: z.string().optional(),
-						})
-						.parse(JSON.parse(buffer.slice(0, newline)));
+					const value = streamEventSchema.parse(JSON.parse(buffer.slice(0, newline)));
 					buffer = buffer.slice(newline + 1);
+					if (
+						value.type === 'started' &&
+						value.conversationId &&
+						value.conversationId !== selected.current.id
+					) {
+						select(value.conversationId);
+						void load();
+					}
 					if (value.text !== undefined) {
 						setStreamed(value.text);
 					}
@@ -292,6 +351,25 @@ export function useDashboard() {
 	function cancel() {
 		abort.current?.abort();
 		void action('chat/cancel', {});
+	}
+
+	/** Shows another saved chat (or a new draft when null) without deleting the current one. */
+	function openChat(id: string | null) {
+		if (abort.current || state?.copilot.running) {
+			return;
+		}
+		select(id);
+		setState((old) => old && { ...old, conversationId: id, chat: [], approvals: [] });
+		void load();
+	}
+
+	async function removeChat(target: ConversationSummary) {
+		if (await action('chat/remove', { conversationId: target.id, confirmed: true })) {
+			if (selected.current.id === target.id) {
+				openChat(null);
+			}
+			setRemovingChat(null);
+		}
 	}
 
 	async function checkReference(reference: Reference) {
@@ -335,10 +413,14 @@ export function useDashboard() {
 		setEditTitle,
 		editLink,
 		setEditLink,
-		clearChat,
-		setClearChat,
+		removingChat,
+		setRemovingChat,
+		removeChat,
+		openChat,
 		approval,
 		setApproval,
+		focusMessage,
+		clearFocus,
 		referenceStatus,
 		input,
 		load,

@@ -38,7 +38,8 @@
 		cursor: pointer;
 	}
 	input:not([type='checkbox']),
-	textarea {
+	textarea,
+	select {
 		@apply rounded-lg border px-3 py-2;
 		border-color: var(--line);
 		background: #0d121a;
@@ -411,6 +412,53 @@ button.primary:hover:not(:disabled) {
 .bubble.assistant {
 	margin-right: 12px;
 }
+.bubble:focus-visible {
+	outline-offset: 1px;
+}
+.chat-history {
+	@apply mt-3 overflow-y-auto rounded-lg border p-2;
+	max-height: 30dvh;
+	border-color: var(--line);
+}
+.chat-history-item {
+	@apply mb-1 flex w-full flex-col items-start gap-1 border-0 px-2 py-2 text-left text-xs;
+	background: transparent;
+}
+.chat-history-item[aria-current='true'] {
+	background: #222a3d;
+}
+.chat-history-title {
+	max-width: 100%;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+.handoff-card {
+	@apply mb-3 rounded-xl border p-3 text-xs;
+	border-color: #3d4a6b;
+	background: #161d2b;
+}
+.handoff-text {
+	@apply mt-2 rounded-lg p-3 text-xs leading-relaxed;
+	max-height: 50dvh;
+	overflow: auto;
+	background: #0d121a;
+	white-space: pre-wrap;
+	overflow-wrap: anywhere;
+}
+.handoffs-layout {
+	display: grid;
+	gap: 20px;
+	grid-template-columns: minmax(0, 320px) minmax(0, 1fr);
+	align-items: start;
+}
+.handoff-entry {
+	@apply mb-1 flex w-full flex-col items-start gap-1 border-0 px-3 py-2 text-left;
+	background: transparent;
+}
+.handoff-entry[aria-current='true'] {
+	background: #222a3d;
+}
 .tool-outcome {
 	margin-bottom: 6px;
 	font-size: 11px;
@@ -592,6 +640,9 @@ button.primary:hover:not(:disabled) {
 	}
 	.mobile-chat {
 		display: inline-block;
+	}
+	.handoffs-layout {
+		grid-template-columns: minmax(0, 1fr);
 	}
 }
 @media (max-width: 700px) {

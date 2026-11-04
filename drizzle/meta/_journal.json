@@ -15,6 +15,13 @@
       "when": 1793182595431,
       "tag": "0001_warm_blacklash",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1793725251052,
+      "tag": "0002_durable_chats_and_handoffs",
+      "breakpoints": true
     }
   ]
 }

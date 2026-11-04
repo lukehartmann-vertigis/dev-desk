@@ -4,6 +4,7 @@ import { chatResponse } from './chat-response';
 import { AppError } from './errors';
 
 const command = { prompt: 'Read my todos.', requestId: '00000000-0000-4000-8000-000000000001' };
+const conversationId = '00000000-0000-4000-8000-000000000002';
 const decoder = new TextDecoder();
 
 beforeEach(() => vi.useFakeTimers());
@@ -11,7 +12,11 @@ afterEach(() => vi.useRealTimers());
 
 function openResponse(signal = new AbortController().signal) {
 	const completion = Promise.withResolvers<void>();
-	const start = vi.fn<Chat['start']>(() => completion.promise);
+	const start = vi.fn<Chat['start']>(() => ({
+		conversationId,
+		runId: command.requestId,
+		done: completion.promise,
+	}));
 	const response = chatResponse({ start }, command, signal);
 	const call = start.mock.calls[0];
 	const reader = response.body?.getReader();
@@ -24,11 +29,15 @@ function openResponse(signal = new AbortController().signal) {
 describe('chat NDJSON transport', () => {
 	it('streams start, heartbeat, text and completion without caching or buffering', async () => {
 		const { completion, response, reader, call } = openResponse();
-		expect(call.slice(0, 2)).toEqual([command.prompt, command.requestId]);
+		expect(call[0]).toEqual(command);
 		expect(response.headers.get('Content-Type')).toBe('application/x-ndjson');
 		expect(response.headers.get('Cache-Control')).toBe('no-store');
 		expect(response.headers.get('X-Accel-Buffering')).toBe('no');
-		expect(decoder.decode((await reader.read()).value)).toBe('{"type":"started"}\n');
+		expect(JSON.parse(decoder.decode((await reader.read()).value))).toEqual({
+			type: 'started',
+			conversationId,
+			runId: command.requestId,
+		});
 		await vi.advanceTimersByTimeAsync(4999);
 		let heartbeatReceived = false;
 		const heartbeat = reader.read().then((chunk) => {
@@ -39,11 +48,11 @@ describe('chat NDJSON transport', () => {
 		expect(heartbeatReceived).toBe(false);
 		await vi.advanceTimersByTimeAsync(1);
 		expect(decoder.decode((await heartbeat).value)).toBe('{"type":"heartbeat"}\n');
-		call[3]({ type: 'text', text: 'Saved\nresult' });
+		call[2]({ type: 'text', text: 'Saved\nresult' });
 		expect(decoder.decode((await reader.read()).value)).toBe(
 			'{"type":"text","text":"Saved\\nresult"}\n',
 		);
-		call[3]({ type: 'complete' });
+		call[2]({ type: 'complete' });
 		expect(decoder.decode((await reader.read()).value)).toBe('{"type":"complete"}\n');
 		completion.resolve();
 		expect((await reader.read()).done).toBe(true);
@@ -58,11 +67,11 @@ describe('chat NDJSON transport', () => {
 			await reader.read();
 			if (source === 'reader') {
 				await reader.cancel();
-				expect(() => call[3]({ type: 'text', text: 'Too late' })).not.toThrow();
+				expect(() => call[2]({ type: 'text', text: 'Too late' })).not.toThrow();
 			} else {
 				controller.abort();
 			}
-			expect(call[2].aborted).toBe(true);
+			expect(call[1].aborted).toBe(true);
 			completion.resolve();
 			await vi.advanceTimersByTimeAsync(0);
 			expect((await reader.read()).done).toBe(true);

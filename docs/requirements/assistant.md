@@ -25,8 +25,15 @@ not the single-agent/tool approach. Implementation approval is still pending.
 Combined-plan approval: on 2026-11-03 the user explicitly approved the documented
 scope, architecture, implementation order, and planned verification for AI-014
 through AI-027, including ADR-0016's SDK lifecycle and ADR-0017/ADR-0018's current
-decision boundaries. This closes the planning/architecture gate, not the separate
-implementation gate. No implementation or functional verification is claimed.
+decision boundaries. This closed the planning/architecture gate.
+
+Delivery status (2026-11-03): the user then explicitly submitted the prepared
+implementation request for this combined scope. AI-014 through AI-027 are
+implemented. Offline, browser, and production-image evidence and the remaining
+live account checks are recorded in the
+[application report](../verification/application.md#durable-chats-and-planning-handoffs--2026-11-03).
+Statements below that implementation is pending describe the earlier planning
+stage and are kept for traceability.
 
 The implemented [settings increment](settings.md) makes new Azure DevOps retrieval
 and reference checks use persisted source selection. It does not add settings
@@ -207,7 +214,8 @@ Acceptance:
 Date: 2026-11-03
 
 Status: **Concept approved; documentation requested on 2026-11-03.
-Implementation approval pending. Not implemented or verified.**
+Implementation authorized and delivered on 2026-11-03; see the delivery status
+above. Live account acceptance remains open.**
 
 The user approved a small first step: prepare a self-contained, copyable planning
 request in DevDesk, then manually submit it in the appropriate VS Code workspace.
@@ -428,8 +436,8 @@ this increment; the next gate is separate implementation approval.
 Date: 2026-11-03
 
 Status: **Concept approved on 2026-11-03 after explicit clarification of separate,
-reopenable conversations. Implementation approval pending. Not implemented or
-verified.**
+reopenable conversations. Implementation authorized and delivered on 2026-11-03;
+live account acceptance remains open.**
 
 The user approved extending the planning scope with independent chats, a history
 list with titles and last activity, reopening and continuation, durable retention,
@@ -590,8 +598,8 @@ is still missing, and all checks above are planned rather than executed.
 Date: 2026-11-03
 
 Status: **Concept and relational ownership model approved; documentation requested
-on 2026-11-03. Separate implementation approval pending. Not implemented or
-functionally verified.**
+on 2026-11-03. Implementation authorized and delivered on 2026-11-03; live account
+acceptance remains open.**
 
 The user approved messages directly owned by conversations, runs as technical
 execution attempts, and independent versioned handoffs with message/run provenance

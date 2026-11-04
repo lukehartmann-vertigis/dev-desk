@@ -7,7 +7,14 @@ import {
 	type Repository,
 	type Snapshot,
 } from './azure';
-import { approvalSchema, chatMessageSchema, type Approval, type ChatMessage } from './chat';
+import {
+	approvalSchema,
+	chatMessageSchema,
+	conversationSummarySchema,
+	type Approval,
+	type ChatMessage,
+	type ConversationSummary,
+} from './chat';
 import { todoListSchema, type TodoList } from './todos';
 
 /** Configuration readiness only; ready does not certify upstream authentication or quota. */
@@ -16,7 +23,10 @@ export interface IntegrationStatus {
 	message: string;
 }
 
-/** Browser-safe local state, excluding credentials and SDK/provider implementation objects. */
+/**
+ * Browser-safe local state, excluding credentials and SDK/provider implementation objects.
+ * `chat` and `approvals` belong to `conversationId`; null means no saved chat is selected.
+ */
 export interface DashboardState {
 	todos: TodoList;
 	ado: IntegrationStatus & {
@@ -28,6 +38,8 @@ export interface DashboardState {
 		selection: { revision: number; boards: number; repositories: number };
 	};
 	copilot: IntegrationStatus & { running: boolean; cleanupPending: boolean };
+	conversations: ConversationSummary[];
+	conversationId: string | null;
 	chat: ChatMessage[];
 	approvals: Approval[];
 }
@@ -53,6 +65,8 @@ export const dashboardSchema: z.ZodType<DashboardState> = z.object({
 		}),
 	}),
 	copilot: integrationSchema.extend({ running: z.boolean(), cleanupPending: z.boolean() }),
+	conversations: z.array(conversationSummarySchema),
+	conversationId: z.string().nullable(),
 	chat: z.array(chatMessageSchema),
 	approvals: z.array(approvalSchema),
 });

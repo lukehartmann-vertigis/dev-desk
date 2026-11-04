@@ -27,7 +27,15 @@ export {
 	type TeamBoard,
 	type WorkItem,
 } from './contracts/azure';
-export { type Approval, type ChatMessage } from './contracts/chat';
+export { type Approval, type ChatMessage, type ConversationSummary } from './contracts/chat';
+export {
+	handoffDetailSchema,
+	handoffListSchema,
+	type ChatHandoff,
+	type HandoffDetail,
+	type HandoffSummary,
+	type HandoffVersion,
+} from './contracts/handoffs';
 export {
 	dashboardSchema,
 	type DashboardState,

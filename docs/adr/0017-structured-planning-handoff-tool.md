@@ -107,3 +107,9 @@ failed persistence, cancellation, a committed artifact followed by stream failur
 create/resume isolation, history reload, and exact clipboard output/failure.
 All checks remain unperformed for this increment; live SDK/account and browser
 acceptance are distinct from offline fixtures.
+
+Implementation (2026-11-03): delivered with a fourth classifier intent, `handoff`,
+which exposes read tools plus `create_planning_handoff` but no todo mutation tools.
+The handler requires the work item to have been read in the same run, rechecks
+the settings revision and scope, and derives retrieval time from that read.
+Evidence: [application report](../verification/application.md#durable-chats-and-planning-handoffs--2026-11-03).
